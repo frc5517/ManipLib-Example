@@ -3,7 +3,7 @@ package maniplib.motors;
 import com.revrobotics.spark.SparkBase;
 import edu.wpi.first.math.system.plant.DCMotor;
 import edu.wpi.first.wpilibj2.command.Command;
-import swervelib.parser.PIDFConfig;
+import maniplib.utils.PIDFConfig;
 
 /**
  * Swerve motor abstraction which defines a standard interface for motors within a swerve module.

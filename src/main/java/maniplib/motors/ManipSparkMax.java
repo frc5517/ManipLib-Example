@@ -16,7 +16,7 @@ import edu.wpi.first.math.system.plant.DCMotor;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
-import swervelib.parser.PIDFConfig;
+import maniplib.utils.PIDFConfig;
 
 import java.util.function.Supplier;
 
