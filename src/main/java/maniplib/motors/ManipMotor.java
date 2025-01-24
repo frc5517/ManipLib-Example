@@ -21,8 +21,6 @@ public abstract class ManipMotor {
 
   public abstract ManipEncoder setEncoder(ManipEncoder encoder);
 
-  public abstract void setConversionFactor(double conversionFactor);
-
   public abstract void configurePIDF(PIDFConfig config);
 
   public abstract void configurePIDWrapping(double minInput, double maxInput);
@@ -41,5 +39,5 @@ public abstract class ManipMotor {
 
   public abstract void setSpeed(double speed);
 
-  public abstract void setReference(double setpoint, SparkBase.ControlType controlType);
+  public abstract void setReference(double setpoint);
 }
