@@ -12,10 +12,14 @@ import com.revrobotics.spark.SparkMax;
 import com.revrobotics.spark.config.ClosedLoopConfig.FeedbackSensor;
 import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
 import com.revrobotics.spark.config.SparkMaxConfig;
+import edu.wpi.first.math.controller.ProfiledPIDController;
 import edu.wpi.first.math.system.plant.DCMotor;
+import edu.wpi.first.math.trajectory.TrapezoidProfile;
+import edu.wpi.first.units.measure.Voltage;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
+import maniplib.utils.PIDControlType;
 import maniplib.utils.PIDFConfig;
 
 import java.util.function.Supplier;
@@ -46,6 +50,18 @@ public class ManipSparkMax extends ManipMotor {
      */
     public SparkClosedLoopController pid;
     /**
+     * Rio Closed-Loop PID Controller
+     */
+    public ProfiledPIDController rioPID;
+    /**
+     * Determine whether to use revPID or rioPID control.
+     */
+    public boolean useRioPID = false;
+    /**
+     * {@link ControlType} for the spark to use
+     */
+    private ControlType sparkControlType = ControlType.kPosition;
+    /**
      * Factory default already occurred.
      */
     private final boolean factoryDefaultOccurred = false;
@@ -64,9 +80,9 @@ public class ManipSparkMax extends ManipMotor {
 
 
     /**
-     * Initialize the swerve motor.
+     * Initialize the manip motor.
      *
-     * @param motor     The SwerveMotor as a SparkMax object.
+     * @param motor     The ManipMotor as a SparkMax object.
      * @param motorType Motor type controlled by the {@link SparkMax} motor controller.
      */
     public ManipSparkMax(SparkMax motor, DCMotor motorType) {
@@ -91,6 +107,45 @@ public class ManipSparkMax extends ManipMotor {
      */
     public ManipSparkMax(int id, DCMotor motorType) {
         this(new SparkMax(id, MotorType.kBrushless), motorType);
+    }
+
+    /**
+     * Sets up the {@link ManipSparkMax} to use rioPID.
+     *
+     * @param pidfConfig pid settings to use.
+     * @param maxVelocity maximum velocity for trapezoid profiling.
+     * @param maxAcceleration maximum acceleration for trapezoid profiling.
+     * @param useRioPID boolean to enable rioPID.
+     */
+    public void setupRioPID(PIDFConfig pidfConfig, double maxVelocity, double maxAcceleration, double tolerance, boolean useRioPID) {
+        rioPID = new ProfiledPIDController(pidfConfig.p, pidfConfig.i, pidfConfig.d, new TrapezoidProfile.Constraints(maxVelocity, maxAcceleration));
+        rioPID.setTolerance(tolerance);
+        useRioPID(useRioPID);
+    }
+
+    /**
+     * Whether to use rioPID or revPID
+     * @param useRioPID boolean to enable rioPID
+     */
+    public void useRioPID(boolean useRioPID) {
+        this.useRioPID = useRioPID;
+    }
+
+    @Override
+    public ProfiledPIDController getRioController() {
+        return rioPID;
+    }
+
+    public SparkClosedLoopController getSparkController() {
+        return motor.getClosedLoopController();
+    }
+
+    public void setPIDControlType(PIDControlType.ControlType controlType) {
+        if (controlType == PIDControlType.ControlType.POSITION) {
+            sparkControlType = ControlType.kPosition;
+        } else if (controlType == PIDControlType.ControlType.VELOCITY) {
+            sparkControlType = ControlType.kVelocity;
+        }
     }
 
     /**
@@ -131,7 +186,7 @@ public class ManipSparkMax extends ManipMotor {
     }
 
     /**
-     * Set the voltage compensation for the swerve module motor.
+     * Set the voltage compensation for the motor.
      *
      * @param nominalVoltage Nominal voltage for operation to output to.
      */
@@ -141,7 +196,7 @@ public class ManipSparkMax extends ManipMotor {
     }
 
     /**
-     * Set the current limit for the swerve drive motor, remember this may cause jumping if used in conjunction with
+     * Set the current limit for the motor, remember this may cause jumping if used in conjunction with
      * voltage compensation. This is useful to protect the motor from current spikes.
      *
      * @param currentLimit Current limit in AMPS at free speed.
@@ -214,6 +269,7 @@ public class ManipSparkMax extends ManipMotor {
                 .iZone(config.iz)
                 .outputRange(config.output.min, config.output.max);
 
+        rioPID.setPID(config.p, config.i, config.d);
     }
 
     /**
@@ -228,6 +284,7 @@ public class ManipSparkMax extends ManipMotor {
                 .positionWrappingEnabled(true)
                 .positionWrappingInputRange(minInput, maxInput);
 
+        rioPID.enableContinuousInput(minInput, maxInput);
     }
 
     /**
@@ -299,47 +356,19 @@ public class ManipSparkMax extends ManipMotor {
      *
      * @param setpoint    Setpoint in MPS or Angle in degrees.
      * @param feedforward Feedforward in volt-meter-per-second or kV.
-     * @param controlType ControlType to run the setReference as.
-     */
-    @Override
-    public void setReference(double setpoint, double feedforward, ControlType controlType) {
-        configureSparkMax(() ->
-                pid.setReference(
-                        setpoint,
-                        controlType,
-                        ClosedLoopSlot.kSlot0,
-                        feedforward));
-    }
-
-    /**
-     * Set the closed loop PID controller reference point.
-     *
-     * @param setpoint    Setpoint in MPS or Angle in degrees.
-     * @param controlType ControlType to run the setReference as.
-     */
-    @Override
-    public void setReference(double setpoint, ControlType controlType) {
-        configureSparkMax(() ->
-                pid.setReference(
-                        setpoint,
-                        controlType,
-                        ClosedLoopSlot.kSlot0));
-    }
-
-    /**
-     * Set the closed loop PID controller reference point.
-     *
-     * @param setpoint    Setpoint in MPS or Angle in degrees.
-     * @param feedforward Feedforward in volt-meter-per-second or kV.
      */
     @Override
     public void setReference(double setpoint, double feedforward) {
-        configureSparkMax(() ->
-                pid.setReference(
-                        setpoint,
-                        ControlType.kPosition,
-                        ClosedLoopSlot.kSlot0,
-                        feedforward));
+        if (useRioPID) {
+            rioPID.calculate(setpoint);
+        } else {
+            configureSparkMax(() ->
+                    pid.setReference(
+                            setpoint,
+                            sparkControlType,
+                            ClosedLoopSlot.kSlot0,
+                            feedforward));
+        }
     }
 
     /**
@@ -349,11 +378,15 @@ public class ManipSparkMax extends ManipMotor {
      */
     @Override
     public void setReference(double setpoint) {
-        configureSparkMax(() ->
-                pid.setReference(
-                        setpoint,
-                        ControlType.kPosition,
-                        ClosedLoopSlot.kSlot0));
+        if (useRioPID) {
+            rioPID.calculate(setpoint);
+        } else {
+            configureSparkMax(() ->
+                    pid.setReference(
+                            setpoint,
+                            sparkControlType,
+                            ClosedLoopSlot.kSlot0));
+        }
     }
 
     /**
@@ -394,10 +427,25 @@ public class ManipSparkMax extends ManipMotor {
         motor.setVoltage(voltage);
     }
 
-  @Override
-  public int getMotorID() {
-    return motor.getDeviceId();
-  }
+    /**
+     * Set the voltage of the motor using {@link Voltage} units.
+     *
+     * @param voltage units to set the motor with.
+     */
+    @Override
+    public void setVoltage(Voltage voltage) {
+        motor.setVoltage(voltage);
+    }
+
+    /**
+     * Returns the canid of the motor.
+     *
+     * @return the canid of the motor.
+     */
+    @Override
+    public int getMotorID() {
+        return motor.getDeviceId();
+    }
 
   /**
      * Get the applied dutycycle output.

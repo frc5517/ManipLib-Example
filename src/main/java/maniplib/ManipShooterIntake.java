@@ -4,6 +4,7 @@ import com.revrobotics.spark.SparkBase;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import maniplib.motors.ManipMotor;
+import maniplib.utils.PIDControlType;
 
 public class ManipShooterIntake extends SubsystemBase {
 
@@ -16,6 +17,7 @@ public class ManipShooterIntake extends SubsystemBase {
    */
     public ManipShooterIntake(ManipMotor motor) {
         this.motor = motor;
+        motor.setPIDControlType(PIDControlType.ControlType.VELOCITY);
     }
 
     /**
@@ -50,7 +52,7 @@ public class ManipShooterIntake extends SubsystemBase {
     public Command setReference(double setpoint, SparkBase.ControlType controlType) {
         return runEnd(
                 () -> {
-                    motor.setReference(setpoint, controlType);
+                    motor.setReference(setpoint);
                 },
                 motor::stopMotor
         );
