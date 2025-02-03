@@ -9,7 +9,6 @@ import edu.wpi.first.wpilibj.util.Color8Bit;
 import maniplib.utils.ManipArmConstants;
 
 import static edu.wpi.first.units.Units.Degrees;
-import static edu.wpi.first.units.Units.Rotations;
 import static frc.robot.Constants.ArmConstants.armConfig;
 
 public class Constants {
@@ -53,13 +52,13 @@ public class Constants {
 
         public static final MechanismLigament2d armMech =
                 armBase.append(
-                new MechanismLigament2d(
-                        "defaultManipArm",
-                        armConfig.kArmLength,
-                        armConfig.kArmStartingAngle.in(Degrees),
-                        6,
-                        new Color8Bit(Color.kRed)
-                ));
+                        new MechanismLigament2d(
+                                "defaultManipArm",
+                                armConfig.kArmLength,
+                                armConfig.kArmStartingAngle.in(Degrees),
+                                6,
+                                new Color8Bit(Color.kRed)
+                        ));
 
 
     }
