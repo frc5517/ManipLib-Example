@@ -13,7 +13,7 @@ public class ManipElevator extends SubsystemBase {
     public DigitalInput bottomLimitSwitch;
 
     /**
-     *  Initialize the {@link ManipElevator} to be used.
+     * Initialize the {@link ManipElevator} to be used.
      *
      * @param motor motor to set as the lead motor for this {@link ManipElevator}
      */
@@ -26,7 +26,7 @@ public class ManipElevator extends SubsystemBase {
      * Sets the {@link ManipMotor} to follow another {@link ManipMotor}.
      *
      * @param followerMotor {@link ManipMotor} to follow the lead motor.
-     * @param isInverted whether to invert the follower or not.
+     * @param isInverted    whether to invert the follower or not.
      */
     public void addFollower(ManipMotor followerMotor, boolean isInverted) {
         followerMotor.setAsFollower(motor, isInverted);

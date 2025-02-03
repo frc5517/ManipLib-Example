@@ -1,7 +1,5 @@
 package maniplib.utils;
 
-import com.revrobotics.spark.SparkBase;
-
 public class PIDControlType {
 
     public static ControlType controlType;

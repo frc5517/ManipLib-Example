@@ -1,6 +1,5 @@
 package maniplib.motors;
 
-import com.revrobotics.spark.SparkBase;
 import edu.wpi.first.math.controller.ProfiledPIDController;
 import edu.wpi.first.math.system.plant.DCMotor;
 import edu.wpi.first.units.measure.Voltage;
@@ -13,16 +12,15 @@ import maniplib.utils.PIDFConfig;
  */
 public abstract class ManipMotor {
 
+    /*
+    Custom methods needed for each controller :
+    getSimMotor, custom simMotor code for each added motor support.
+     */
+
     /**
      * The maximum amount of times the swerve motor will attempt to configure a motor if failures occur.
      */
     public final int maximumRetries = 5;
-    /**
-     * Sim motor to use, defaulted in {@link ManipMotor#getSimMotor()}, but can be overridden here. <br/> NOTE: This will
-     * not change the simulation motor type! It is intended for use only if you are utilizing Feedforwards from
-     * PathPlanner.
-     */
-    public DCMotor simMotor;
 
     /**
      * Configure the factory defaults.
@@ -37,15 +35,16 @@ public abstract class ManipMotor {
     /**
      * Sets up the {@link ManipSparkMax} to use rioPID.
      *
-     * @param pidfConfig pid settings to use.
-     * @param maxVelocity maximum velocity for trapezoid profiling.
+     * @param pidfConfig      pid settings to use.
+     * @param maxVelocity     maximum velocity for trapezoid profiling.
      * @param maxAcceleration maximum acceleration for trapezoid profiling.
-     * @param useRioPID boolean to enable rioPID.
+     * @param useRioPID       boolean to enable rioPID.
      */
     public abstract void setupRioPID(PIDFConfig pidfConfig, double maxVelocity, double maxAcceleration, double tolerance, boolean useRioPID);
 
     /**
      * Whether to use rioPID or revPID
+     *
      * @param useRioPID boolean to enable rioPID
      */
     public abstract void useRioPID(boolean useRioPID);
@@ -217,11 +216,4 @@ public abstract class ManipMotor {
      * @return Motor object.
      */
     public abstract Object getMotor();
-
-    /**
-     * Get the {@link DCMotor} of the motor class.
-     *
-     * @return {@link DCMotor} of this type.
-     */
-    public abstract DCMotor getSimMotor();
 }

@@ -1,7 +1,6 @@
 package maniplib.utils;
 
 import edu.wpi.first.units.measure.Angle;
-import maniplib.ManipArm;
 
 import static edu.wpi.first.units.Units.Rotations;
 

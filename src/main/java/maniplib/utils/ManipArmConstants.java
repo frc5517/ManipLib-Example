@@ -14,21 +14,21 @@ public class ManipArmConstants {
     public final double kArmKp;
     public final double kArmKi;
     public final double kArmKd;
-    public final Angle  kArmAllowedClosedLoopError;
+    public final Angle kArmAllowedClosedLoopError;
 
-    public final double  kArmReduction;
-    public final double  kArmMass; // Kilograms
-    public final double  kArmLength;
+    public final double kArmReduction;
+    public final double kArmMass; // Kilograms
+    public final double kArmLength;
     public final Angle kArmStartingAngle;
-    public final Angle   kMinAngle;
-    public final Angle   kMaxAngle;
-    public final double  kArmRampRate;
-    public final Angle   kArmOffsetToHorizantalZero;
+    public final Angle kMinAngle;
+    public final Angle kMaxAngle;
+    public final double kArmRampRate;
+    public final Angle kArmOffsetToHorizantalZero;
     public final boolean kArmInverted;
 
-    public final double  kArmMaxVelocityRPM;
-    public final double  kArmMaxAccelerationRPMperSecond;
-    public final int     kArmStallCurrentLimitAmps;
+    public final double kArmMaxVelocityRPM;
+    public final double kArmMaxAccelerationRPMperSecond;
+    public final int kArmStallCurrentLimitAmps;
 
     public final double kArmkS; // volts (V)
     public final double kArmkG; // volts (V)
