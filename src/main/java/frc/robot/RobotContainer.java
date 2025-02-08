@@ -37,8 +37,8 @@ public class RobotContainer {
     private void configureBindings() {
 
         // Can also make actual subsystem classes with something like armSubsystem.intake() to clean up RobotContainer
-        m_operatorController.a().whileTrue(arm.runArmCommand(.15));
-        m_operatorController.b().whileTrue(arm.runArmCommand(-.15));
+        m_operatorController.a().whileTrue(arm.runEnd(() -> arm.runArm(.15), arm::stopArm));
+        m_operatorController.b().whileTrue(arm.runEnd(() -> arm.runArm(-.15), arm::stopArm));
 
         m_operatorController.y().whileTrue(arm.setGoal(-90));
         m_operatorController.x().whileTrue(arm.setGoal(90));

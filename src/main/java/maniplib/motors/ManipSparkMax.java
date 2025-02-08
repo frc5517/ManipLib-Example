@@ -338,13 +338,7 @@ public class ManipSparkMax extends ManipMotor {
      * @param percentOutput percent out for the motor controller.
      */
     @Override
-    public void set(double percentOutput) {
-        runEnd(() -> {
-            motor.set(percentOutput);
-        }, () -> {
-            motor.set(0.0);
-        });
-    }
+    public void set(double percentOutput) {motor.set(percentOutput);}
 
     /**
      * Set the closed loop PID controller reference point.

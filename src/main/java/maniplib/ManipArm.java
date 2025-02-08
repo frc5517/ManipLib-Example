@@ -5,6 +5,7 @@ import com.revrobotics.sim.SparkMaxSim;
 import edu.wpi.first.math.controller.ArmFeedforward;
 import edu.wpi.first.math.system.plant.LinearSystemId;
 import edu.wpi.first.math.trajectory.TrapezoidProfile;
+import edu.wpi.first.math.util.Units;
 import edu.wpi.first.units.measure.*;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.RobotController;
@@ -64,6 +65,9 @@ public class ManipArm extends SubsystemBase {
     private MechanismLigament2d armMech;
 
     private SparkMaxSim sparkMaxSim;
+
+    // Temp wpiSim toggle
+    private boolean wpiSim = false;
 
 
     /**
@@ -126,13 +130,14 @@ public class ManipArm extends SubsystemBase {
                     true,
                     config.kArmStartingAngle.in(Radians),
                     0.02 / 4096,
-                    1.0
+                    0.0
             );
 
             this.motorSim = new DCMotorSim(
                     LinearSystemId.createDCMotorSystem(
-                            config.kArmKv,
-                            config.kArmKa
+                            config.gearbox,
+                            SingleJointedArmSim.estimateMOI(config.kArmLength, config.kArmMass),
+                            config.kArmReduction
                     ),
                     config.gearbox,
                     0.02 / 4096,
@@ -187,13 +192,48 @@ public class ManipArm extends SubsystemBase {
 
     @Override
     public void simulationPeriodic() {
+        // I want the sim to use WPISim
 
-        if (motor instanceof ManipSparkMax) {
-            sparkMaxSim();
+        if (!wpiSim) {
+            if (motor instanceof ManipSparkMax) {
+                sparkMaxSim();
+                SmartDashboard.putNumber("Angle", getAngle().in(Degrees));
+            }
+        } else {
+            wpiSim();
         }
 
     }
 
+    private void wpiSim() {
+
+        // Set the motorSim input voltage determined from control methods.
+        motorSim.setInputVoltage(appliedVoltage.in(Volts) * RoboRioSim.getVInVoltage());
+
+        // Update the motorSim, standard loop time is 20ms.
+        motorSim.update(0.02);
+
+        // Set the armSim input, we also use voltage for this.
+        armSim.setInputVoltage(motorSim.getOutput(0));
+
+        // Update the arm sim, Standard loop time is 20ms.
+        armSim.update(0.02);
+
+        // Finally, we set our simulated encoder's readings and simulated battery voltage
+        motor.setPosition(ManipMath.Arm.convertAngleToSensorUnits(armConstants.kArmReduction, Radians.of(armSim.getAngleRads())).in(Rotations));
+
+        // SimBattery estimates loaded battery voltages
+        RoboRioSim.setVInVoltage(
+                BatterySim.calculateDefaultBatteryLoadedVoltage(armSim.getCurrentDrawAmps()));
+
+        // Update the Mechanism Arm based on simulated arm angle
+        armMech.setAngle(Units.radiansToDegrees(armSim.getAngleRads()));
+    }
+
+    /**
+     * Setups up the simulation for a {@link SparkMaxSim}.
+     * Gets called in simulationPeriodic() in the {@link ManipArm} class.
+     */
     private void sparkMaxSim() {
         if (isAdvancedEnabled) {
             // In this method, we update our simulation of what our arm is doing
@@ -217,7 +257,7 @@ public class ManipArm extends SubsystemBase {
                     BatterySim.calculateDefaultBatteryLoadedVoltage(armSim.getCurrentDrawAmps()));
 
             // Update the Mechanism Arm angle based on the simulated arm angle.
-            armMech.setAngle(Degrees.convertFrom(armSim.getAngleRads(), Radians));
+            armMech.setAngle(Units.radiansToDegrees(armSim.getAngleRads()));
         }
     }
 
@@ -324,10 +364,14 @@ public class ManipArm extends SubsystemBase {
             double goalPosition = ManipMath.Arm.convertAngleToSensorUnits(armConstants.kArmReduction, Degrees.of(setpoint)).in(Rotations);
             double pidOutput = motor.getRioController().calculate(motor.getPosition(), goalPosition);
             TrapezoidProfile.State setpointState = motor.getRioController().getSetpoint();
-            motor.setVoltage(pidOutput +
+
+            double output = pidOutput +
                     feedforward.calculate(setpointState.position,
-                            setpointState.velocity)
-            );
+                            setpointState.velocity);
+
+            appliedVoltage.mut_replace(Volts.of(output));
+
+            motor.setVoltage(output);
         } else {
             limitSwitchFunction();
             motor.setReference(setpoint);
@@ -339,7 +383,8 @@ public class ManipArm extends SubsystemBase {
      */
     public void runArm(double speed) {
         limitSwitchFunction();
-        motor.set(speed);
+        appliedVoltage.mut_replace(Volts.of(12 * speed));
+        motor.setVoltage(12 * speed);
     }
 
     /**
