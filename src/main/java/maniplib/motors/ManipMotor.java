@@ -1,7 +1,6 @@
 package maniplib.motors;
 
 import edu.wpi.first.math.controller.ProfiledPIDController;
-import edu.wpi.first.math.system.plant.DCMotor;
 import edu.wpi.first.units.measure.Voltage;
 import edu.wpi.first.wpilibj2.command.Command;
 import maniplib.utils.PIDControlType;

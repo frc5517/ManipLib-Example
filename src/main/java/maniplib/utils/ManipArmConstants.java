@@ -45,7 +45,7 @@ public class ManipArmConstants {
             double kArmKd,
             double kArmAllowedClosedLoopError,
             double kArmReduction,
-            double kArmMass,
+            double kArmMassLbs,
             double kArmLength,
             double kArmStartingAngle,
             double kMinAngle,
@@ -68,7 +68,7 @@ public class ManipArmConstants {
         this.kArmKd = kArmKd;
         this.kArmAllowedClosedLoopError = ManipMath.Arm.convertAngleToSensorUnits(kArmReduction, Degrees.of(kArmAllowedClosedLoopError));
         this.kArmReduction = kArmReduction;
-        this.kArmMass = kArmMass;
+        this.kArmMass = Kilograms.convertFrom(kArmMassLbs, Pounds);
         this.kArmLength = Inches.of(kArmLength).in(Meters);
         this.kArmStartingAngle = Radians.of(kArmStartingAngle);
         this.kMinAngle = Radians.of(Units.degreesToRadians(kMinAngle));

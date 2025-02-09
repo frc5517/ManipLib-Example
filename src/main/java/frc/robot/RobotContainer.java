@@ -22,14 +22,14 @@ public class RobotContainer {
     private final ElevatorSubsystem elevatorSubsystem = new ElevatorSubsystem();
     private final IntakeShooterSubsystem intakeShooterSubsystem = new IntakeShooterSubsystem();
 
-    // Define the control super structure subsystem
-
     // We only need operator controller for this project
-    private final CommandXboxController m_operatorController = new CommandXboxController(0);
+    private final CommandXboxController operatorController = new CommandXboxController(0);
 
     public RobotContainer() {
 
         DriverStation.silenceJoystickConnectionWarning(true);
+
+        arm.setDefaultCommand(arm.defaultCommandWithOverride(0));
 
         configureBindings();
     }
@@ -37,13 +37,16 @@ public class RobotContainer {
     private void configureBindings() {
 
         // Can also make actual subsystem classes with something like armSubsystem.intake() to clean up RobotContainer
-        m_operatorController.a().whileTrue(arm.runEnd(() -> arm.runArm(.15), arm::stopArm));
-        m_operatorController.b().whileTrue(arm.runEnd(() -> arm.runArm(-.15), arm::stopArm));
+        operatorController.a().whileTrue(arm.runEnd(() -> arm.runArm(.15), arm::stopArm));
+        operatorController.b().whileTrue(arm.runEnd(() -> arm.runArm(-.15), arm::stopArm));
 
-        m_operatorController.y().whileTrue(arm.setGoal(-90));
-        m_operatorController.x().whileTrue(arm.setGoal(90));
+        operatorController.back().onTrue(arm.overrideDefaultCommand());
 
-        m_operatorController.start().onTrue(arm.runSysIdRoutine());
+        operatorController.y().whileTrue(arm.setGoal(-75));
+        operatorController.x().whileTrue(arm.setGoal(75));
+
+        // Basically an E-Stop
+        operatorController.start().onTrue(arm.runSysIdRoutine());
     }
 
     public Command getAutonomousCommand() {

@@ -1,15 +1,14 @@
 package maniplib;
 
-import com.revrobotics.AbsoluteEncoder;
-import com.revrobotics.sim.SparkMaxSim;
 import edu.wpi.first.math.controller.ArmFeedforward;
-import edu.wpi.first.math.system.plant.LinearSystemId;
 import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.math.util.Units;
 import edu.wpi.first.units.measure.*;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.RobotController;
-import edu.wpi.first.wpilibj.simulation.*;
+import edu.wpi.first.wpilibj.simulation.BatterySim;
+import edu.wpi.first.wpilibj.simulation.RoboRioSim;
+import edu.wpi.first.wpilibj.simulation.SingleJointedArmSim;
 import edu.wpi.first.wpilibj.smartdashboard.Mechanism2d;
 import edu.wpi.first.wpilibj.smartdashboard.MechanismLigament2d;
 import edu.wpi.first.wpilibj.smartdashboard.MechanismRoot2d;
@@ -17,11 +16,11 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj.util.Color;
 import edu.wpi.first.wpilibj.util.Color8Bit;
 import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
 import maniplib.motors.ManipMotor;
-import maniplib.motors.ManipSparkMax;
 import maniplib.utils.ManipArmConstants;
 import maniplib.utils.ManipMath;
 import maniplib.utils.PIDFConfig;
@@ -29,53 +28,43 @@ import maniplib.utils.PIDFConfig;
 import static edu.wpi.first.units.Units.*;
 
 public class ManipArm extends SubsystemBase {
-
-    // SysId Routine Setup
     // Mutable holders for unit-safe values, persisted to avoid reallocation.
     private final MutVoltage appliedVoltage = Volts.mutable(0);
     private final MutAngle angle = Rotations.mutable(0);
     private final MutAngularVelocity velocity = RPM.mutable(0);
+    private final MutAngle absEncoderAngle = Rotations.mutable(0);
     // Triggers for when reaching max movements.
     private Trigger atMin;
     private Trigger atMax;
     // Triggers for limit switch functions.
     private Trigger topLimitHit;
     private Trigger bottomLimitHit;
+    // Various booleans to determine what to enable
+    private boolean absSetup = false;
     private boolean isAdvancedEnabled = false;
     private boolean syncAbsEncoderInit = true;
+    private boolean defaultCommandOverride = false;
     // Universal motor init
     private ManipMotor motor;
-    private AbsoluteEncoder absEncoder;
-    private DCMotorSim motorSim;
     private ArmFeedforward feedforward;
     private ManipArmConstants armConstants;
     // SysId Routine
     private SysIdRoutine sysIdRoutine;
-
     // Simulation class to help simulate what is going on, including gravity.
     private SingleJointedArmSim armSim;
-
     // Mechanism 2d for simulation, needs overridden for anything more than a basic arm.
     private Mechanism2d arm2d;
-
     // Mechanism root for simulation, needs overridden for anything more than a basic arm.
     private MechanismRoot2d armRoot;
-
     // Mechanism for simulation, needs overridden for anything more than a basic arm.
     private MechanismLigament2d armMech;
-
-    private SparkMaxSim sparkMaxSim;
-
-    // Temp wpiSim toggle
-    private boolean wpiSim = false;
-
 
     /**
      * Subsystem constructor, advanced {@link ManipArm} when config.kEnableAdvanced is set to true.
      */
     public ManipArm(ManipMotor motor, ManipArmConstants config) {
 
-        if (absEncoder != null && syncAbsEncoderInit) {
+        if (absSetup && syncAbsEncoderInit) {
             synchronizeAbsoluteEncoder();
         }
 
@@ -130,18 +119,7 @@ public class ManipArm extends SubsystemBase {
                     true,
                     config.kArmStartingAngle.in(Radians),
                     0.02 / 4096,
-                    0.0
-            );
-
-            this.motorSim = new DCMotorSim(
-                    LinearSystemId.createDCMotorSystem(
-                            config.gearbox,
-                            SingleJointedArmSim.estimateMOI(config.kArmLength, config.kArmMass),
-                            config.kArmReduction
-                    ),
-                    config.gearbox,
-                    0.02 / 4096,
-                    0.0
+                    1.0
             );
 
             this.arm2d =
@@ -152,24 +130,21 @@ public class ManipArm extends SubsystemBase {
 
             this.armRoot =
                     arm2d.getRoot("ManipArm Root",
-                    config.kArmLength,
-                    config.kArmLength);
+                            config.kArmLength,
+                            config.kArmLength);
 
             this.armMech =
                     armRoot.append(
-                    new MechanismLigament2d(
-                    "defaultManipArm",
-                    config.kArmLength,
-                    config.kArmStartingAngle.in(Degrees),
-                    6,
-                    new Color8Bit(Color.kOrange)
-                    ));
-
-            if (motor instanceof ManipSparkMax) {
-                sparkMaxSim = new SparkMaxSim(((ManipSparkMax) motor).getSparkMax(), config.gearbox);
-            }
+                            new MechanismLigament2d(
+                                    "defaultManipArm",
+                                    config.kArmLength,
+                                    config.kArmStartingAngle.in(Degrees),
+                                    6,
+                                    new Color8Bit(Color.kOrange)
+                            ));
 
             // Put Mechanism 2d to dashboard, should be N4T
+            // Telemetry enum needs made...
             SmartDashboard.putData("Side View", arm2d);
         }
 
@@ -192,29 +167,8 @@ public class ManipArm extends SubsystemBase {
 
     @Override
     public void simulationPeriodic() {
-        // I want the sim to use WPISim
-
-        if (!wpiSim) {
-            if (motor instanceof ManipSparkMax) {
-                sparkMaxSim();
-                SmartDashboard.putNumber("Angle", getAngle().in(Degrees));
-            }
-        } else {
-            wpiSim();
-        }
-
-    }
-
-    private void wpiSim() {
-
-        // Set the motorSim input voltage determined from control methods.
-        motorSim.setInputVoltage(appliedVoltage.in(Volts) * RoboRioSim.getVInVoltage());
-
-        // Update the motorSim, standard loop time is 20ms.
-        motorSim.update(0.02);
-
-        // Set the armSim input, we also use voltage for this.
-        armSim.setInputVoltage(motorSim.getOutput(0));
+        // Set the armSim input, we use volts for this.
+        armSim.setInputVoltage(appliedVoltage.in(Volts));
 
         // Update the arm sim, Standard loop time is 20ms.
         armSim.update(0.02);
@@ -228,37 +182,7 @@ public class ManipArm extends SubsystemBase {
 
         // Update the Mechanism Arm based on simulated arm angle
         armMech.setAngle(Units.radiansToDegrees(armSim.getAngleRads()));
-    }
 
-    /**
-     * Setups up the simulation for a {@link SparkMaxSim}.
-     * Gets called in simulationPeriodic() in the {@link ManipArm} class.
-     */
-    private void sparkMaxSim() {
-        if (isAdvancedEnabled) {
-            // In this method, we update our simulation of what our arm is doing
-            // First, we set our "inputs" (voltages)
-            armSim.setInput(sparkMaxSim.getAppliedOutput() * RoboRioSim.getVInVoltage());
-
-            // Next, we update it. The standard loop time is 20ms.
-            armSim.update(0.02);
-
-            sparkMaxSim.iterate(
-                    RotationsPerSecond.of(ManipMath.Arm.convertAngleToSensorUnits(armConstants.kArmReduction, Radians.of(armSim.getVelocityRadPerSec())).in(Rotations))
-                            .in(RPM),
-                    RoboRioSim.getVInVoltage(), // Simulated battery voltage, in Volts
-                    0.02); // Time interval, in Seconds
-
-            // Finally, we set our simulated encoder's readings and simulated battery voltage
-            motor.setPosition(ManipMath.Arm.convertAngleToSensorUnits(armConstants.kArmReduction, Radians.of(armSim.getAngleRads())).in(Rotations));
-
-            // SimBattery estimates loaded battery voltages
-            RoboRioSim.setVInVoltage(
-                    BatterySim.calculateDefaultBatteryLoadedVoltage(armSim.getCurrentDrawAmps()));
-
-            // Update the Mechanism Arm angle based on the simulated arm angle.
-            armMech.setAngle(Units.radiansToDegrees(armSim.getAngleRads()));
-        }
     }
 
     /**
@@ -273,10 +197,11 @@ public class ManipArm extends SubsystemBase {
 
     /**
      * Adds an absolute encoder to sync to on init. This is not used for actual control
-     * but recommended to keep arm position on boot.
+     * but recommended to keep arm position on boot. Can be called in init.
      */
-    public void addAbsoluteEncoder(AbsoluteEncoder absEncoder) {
-        this.absEncoder = absEncoder;
+    public void addAbsoluteEncoderValue(double absEncoderDegrees) {
+        absEncoderAngle.mut_replace(absEncoderDegrees, Degrees);
+        this.absSetup = true;
     }
 
     /**
@@ -284,7 +209,7 @@ public class ManipArm extends SubsystemBase {
      * {@link ManipArm} class or not. This is enabled by default.
      */
     public void setSyncAbsEncoderInit(boolean syncAbsEncoderInit) {
-        if (absEncoder != null) {
+        if (absSetup) {
             this.syncAbsEncoderInit = syncAbsEncoderInit;
         } else {
             DriverStation.reportWarning("Absolute encoder for ManipArm is not set, cannot run setSyncAbsEncoderInit", true);
@@ -329,11 +254,11 @@ public class ManipArm extends SubsystemBase {
     }
 
     /**
-     * Synchronizes inbuilt encoder to the setup absolute encoder.
+     * Seeds inbuilt encoder with absolute encoder value.
      * Syncs on init by default.
      */
     public void synchronizeAbsoluteEncoder() {
-        motor.setPosition(Rotations.of(absEncoder.getPosition()).minus(armConstants.kArmOffsetToHorizantalZero)
+        motor.setPosition(absEncoderAngle.minus(armConstants.kArmOffsetToHorizantalZero)
                 .in(Rotations));
     }
 
@@ -370,8 +295,12 @@ public class ManipArm extends SubsystemBase {
                             setpointState.velocity);
 
             appliedVoltage.mut_replace(Volts.of(output));
-
             motor.setVoltage(output);
+
+            if (atMin.getAsBoolean() || atMax.getAsBoolean()) {
+                stopArm();
+            }
+
         } else {
             limitSwitchFunction();
             motor.setReference(setpoint);
@@ -383,8 +312,8 @@ public class ManipArm extends SubsystemBase {
      */
     public void runArm(double speed) {
         limitSwitchFunction();
-        appliedVoltage.mut_replace(Volts.of(12 * speed));
-        motor.setVoltage(12 * speed);
+        appliedVoltage.mut_replace(Volts.of(RoboRioSim.getVInVoltage() * speed));
+        motor.set(speed);
     }
 
     /**
@@ -447,22 +376,52 @@ public class ManipArm extends SubsystemBase {
 
     /**
      * Function that sees if there's active limit switches then stops the {@link ManipArm} if one is hit.
+     * Also sets soft limits based off of given Min and Max positions.
      */
     public void limitSwitchFunction() {
+
+        if (atMax.getAsBoolean() || atMin.getAsBoolean()) {
+            stopArm();
+        }
+
         if (topLimitHit != null) {
             if (motor.getAppliedOutput() > 0 && bottomLimitHit.getAsBoolean()) {
-                motor.stopMotor();
+                stopArm();
             } else {
-                // Stop stopping the motor
+                Commands.none(); // Stop stopping the arm
             }
         }
         if (bottomLimitHit != null) {
             if (motor.getAppliedOutput() < 0 && bottomLimitHit.getAsBoolean()) {
-                motor.stopMotor();
+                stopArm();
             } else {
-                // Stop stopping the motor
+                Commands.none(); // Stop stopping the arm
             }
         }
+    }
+
+    /**
+     * A command to be used as a default command to stow the arm.
+     * Use toggleAutoStow() to toggle it on and off.
+     * It's good for if you want it to stow but want safety or to be able to control manually.
+     */
+    public Command autoStowWithOverride(double stowAngle) {
+        return run(() -> {
+            if (!defaultCommandOverride) {
+                reachSetpoint(stowAngle);
+            } else {
+                Commands.none();
+            }
+        });
+    }
+
+    /**
+     * Toggles auto-stow of defaultCommandOverride
+     */
+    public Command toggleAutoStow() {
+        return run(() -> {
+            defaultCommandOverride = !defaultCommandOverride;
+        });
     }
 
     /**
@@ -470,5 +429,6 @@ public class ManipArm extends SubsystemBase {
      */
     public void stopArm() {
         motor.stopMotor();
+        appliedVoltage.mut_replace(Volts.of(0));
     }
 }
