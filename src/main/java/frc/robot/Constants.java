@@ -25,42 +25,25 @@ public class Constants {
                         2.354,
                         0,
                         0,
-                        0.01,
-                        140, // 60:1 with 12:28 sprockets.
+                        0,
+                        0, // 60:1 with 12:28 sprockets.
+                        .2,
+                        0.0683,
+                        140,
                         3,
                         17,
-                        45,
+                        0,
                         -90,
                         90,
-                        0.5,
-                        0,
                         false,
-                        5,
-                        5,
+                        0.5,
                         30,
-                        0,
-                        0,
-                        0.2,
-                        0.0683,
+                        0.01,
+                        30,
+                        5,
+                        5,
                         true
                 );
-
-        public static final MechanismRoot2d armBase =
-                sideView.getRoot("Arm Base",
-                        .5,
-                        1);
-
-        public static final MechanismLigament2d armMech =
-                armBase.append(
-                        new MechanismLigament2d(
-                                "defaultManipArm",
-                                armConfig.kArmLength,
-                                armConfig.kArmStartingAngle.in(Degrees),
-                                6,
-                                new Color8Bit(Color.kRed)
-                        ));
-
-
     }
 
     public static final class ElevatorConstants {

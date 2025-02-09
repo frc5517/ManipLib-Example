@@ -29,7 +29,7 @@ public class RobotContainer {
 
         DriverStation.silenceJoystickConnectionWarning(true);
 
-        arm.setDefaultCommand(arm.defaultCommandWithOverride(0));
+        arm.setDefaultCommand(arm.autoStowWithOverride(0));
 
         configureBindings();
     }
@@ -40,7 +40,7 @@ public class RobotContainer {
         operatorController.a().whileTrue(arm.runEnd(() -> arm.runArm(.15), arm::stopArm));
         operatorController.b().whileTrue(arm.runEnd(() -> arm.runArm(-.15), arm::stopArm));
 
-        operatorController.back().onTrue(arm.overrideDefaultCommand());
+        operatorController.back().onTrue(arm.toggleAutoStow());
 
         operatorController.y().whileTrue(arm.setGoal(-75));
         operatorController.x().whileTrue(arm.setGoal(75));

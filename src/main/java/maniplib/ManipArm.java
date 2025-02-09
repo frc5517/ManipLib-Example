@@ -7,6 +7,7 @@ import edu.wpi.first.units.measure.*;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj.simulation.BatterySim;
+import edu.wpi.first.wpilibj.simulation.DCMotorSim;
 import edu.wpi.first.wpilibj.simulation.RoboRioSim;
 import edu.wpi.first.wpilibj.simulation.SingleJointedArmSim;
 import edu.wpi.first.wpilibj.smartdashboard.Mechanism2d;
@@ -165,6 +166,10 @@ public class ManipArm extends SubsystemBase {
         this.motor = motor;
     }
 
+    /**
+     * Ran periodically in simulation.
+     * Controls the arm simulation.
+     */
     @Override
     public void simulationPeriodic() {
         // Set the armSim input, we use volts for this.
@@ -312,8 +317,8 @@ public class ManipArm extends SubsystemBase {
      */
     public void runArm(double speed) {
         limitSwitchFunction();
-        appliedVoltage.mut_replace(Volts.of(RoboRioSim.getVInVoltage() * speed));
-        motor.set(speed);
+        appliedVoltage.mut_replace(Volts.of(RoboRioSim.getVInVoltage() * -speed));
+        motor.set(-speed);
     }
 
     /**
