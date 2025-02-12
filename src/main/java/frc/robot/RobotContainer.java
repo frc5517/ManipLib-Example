@@ -8,10 +8,11 @@ import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
-import frc.robot.subsystems.ElevatorSubsystem;
-import frc.robot.subsystems.IntakeShooterSubsystem;
+import maniplib.ManipElevator;
 import maniplib.ManipArm;
 import maniplib.motors.ManipSparkMax;
+
+import static edu.wpi.first.units.Units.Volts;
 
 public class RobotContainer {
 
@@ -19,8 +20,8 @@ public class RobotContainer {
     private final ManipSparkMax armMotor = new ManipSparkMax(1);
     private final ManipArm arm = new ManipArm(armMotor, Constants.ArmConstants.armConfig);
 
-    private final ElevatorSubsystem elevatorSubsystem = new ElevatorSubsystem();
-    private final IntakeShooterSubsystem intakeShooterSubsystem = new IntakeShooterSubsystem();
+    private final ManipSparkMax leftElevatorMotor = new ManipSparkMax(2);
+    private final ManipElevator elevator = new ManipElevator(leftElevatorMotor, Constants.ElevatorConstants.elevatorConfig);
 
     // We only need operator controller for this project
     private final CommandXboxController operatorController = new CommandXboxController(0);
@@ -29,7 +30,12 @@ public class RobotContainer {
 
         DriverStation.silenceJoystickConnectionWarning(true);
 
+        ManipSparkMax rightElevatorMotor = new ManipSparkMax(3);
+        elevator.addFollower(rightElevatorMotor, true);
+
         arm.setDefaultCommand(arm.autoStowWithOverride(0));
+
+        elevator.setDefaultCommand(elevator.autoStowWithOverride(0));
 
         configureBindings();
     }
@@ -37,16 +43,21 @@ public class RobotContainer {
     private void configureBindings() {
 
         // Can also make actual subsystem classes with something like armSubsystem.intake() to clean up RobotContainer
-        operatorController.a().whileTrue(arm.runEnd(() -> arm.runArm(.15), arm::stopArm));
-        operatorController.b().whileTrue(arm.runEnd(() -> arm.runArm(-.15), arm::stopArm));
+        operatorController.a().whileTrue(arm.runEnd(() -> arm.runArmSpeed(1), arm::stopArm));
+        operatorController.b().whileTrue(arm.runEnd(() -> arm.runArmSpeed(-1), arm::stopArm));
+        operatorController.a().whileTrue(elevator.runEnd(() -> elevator.runElevatorSpeed(1), elevator::stopElevator));
+        operatorController.b().whileTrue(elevator.runEnd(() -> elevator.runElevatorSpeed(-1), elevator::stopElevator));
 
         operatorController.back().onTrue(arm.toggleAutoStow());
+        operatorController.back().onFalse(elevator.toggleAutoStow());
 
+        operatorController.y().whileTrue(elevator.setGoal(400));
+        operatorController.x().whileTrue(elevator.setGoal(100));
         operatorController.y().whileTrue(arm.setGoal(-75));
         operatorController.x().whileTrue(arm.setGoal(75));
 
-        // Basically an E-Stop
         operatorController.start().onTrue(arm.runSysIdRoutine());
+        operatorController.start().onTrue(elevator.runSysIdRoutine());
     }
 
     public Command getAutonomousCommand() {

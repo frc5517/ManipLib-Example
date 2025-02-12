@@ -1,25 +1,213 @@
 package maniplib;
 
-import edu.wpi.first.wpilibj.DigitalInput;
+import edu.wpi.first.math.MathUtil;
+import edu.wpi.first.math.controller.ElevatorFeedforward;
+import edu.wpi.first.math.system.plant.LinearSystemId;
+import edu.wpi.first.units.measure.*;
+import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.RobotController;
+import edu.wpi.first.wpilibj.simulation.BatterySim;
+import edu.wpi.first.wpilibj.simulation.ElevatorSim;
+import edu.wpi.first.wpilibj.simulation.RoboRioSim;
+import edu.wpi.first.wpilibj.smartdashboard.Mechanism2d;
+import edu.wpi.first.wpilibj.smartdashboard.MechanismLigament2d;
+import edu.wpi.first.wpilibj.smartdashboard.MechanismRoot2d;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.wpilibj.util.Color;
+import edu.wpi.first.wpilibj.util.Color8Bit;
 import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import edu.wpi.first.wpilibj2.command.button.Trigger;
+import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
 import maniplib.motors.ManipMotor;
+import maniplib.utils.ManipElevatorConstants;
+import maniplib.utils.ManipMath;
+import maniplib.utils.PIDFConfig;
+
+import static edu.wpi.first.units.Units.*;
 
 public class ManipElevator extends SubsystemBase {
-
-    public ManipMotor motor;
-
-    public DigitalInput topLimitSwitch;
-    public DigitalInput bottomLimitSwitch;
+    // Mutable holders for unit-safe values, persisted to avoid reallocation.
+    private final MutVoltage commandedVoltage = Volts.mutable(0);
+    private final MutLinearVelocity velocity = MetersPerSecond.mutable(0);
+    private final MutDistance distance = Meters.mutable(0);
+    private final MutAngle rotations = Rotations.mutable(0);
+    private final MutAngle absEncoderAngle = Rotations.mutable(0);
+    // Triggers for when reaching max movements.
+    private Trigger atMin;
+    private Trigger atMax;
+    // Triggers for limit switch functions.
+    private Trigger topLimitHit;
+    private Trigger bottomLimitHit;
+    // Various booleans to determine what to enable
+    private boolean absSetup = false;
+    private boolean isAdvancedEnabled = false;
+    private boolean syncAbsEncoderInit = true;
+    private boolean defaultCommandOverride = false;
+    private boolean overrideMech2d = false;
+    // Universal motor init
+    private ManipMotor motor;
+    private ElevatorFeedforward feedforward;
+    private ManipElevatorConstants elevatorConstants;
+    // SysId Routine
+    private SysIdRoutine sysIdRoutine;
+    // Simulation class to help simulate what is going on, including gravity.
+    private ElevatorSim elevatorSim;
+    // Mechanism for simulation, needs overridden for anything more than a basic elevator.
+    private MechanismLigament2d elevatorMech;
 
     /**
-     * Initialize the {@link ManipElevator} to be used.
-     *
-     * @param motor motor to set as the lead motor for this {@link ManipElevator}
+     * Subsystem constructor, advanced {@link ManipElevator} when config.kEnableAdvanced is set to true.
+     */
+    public ManipElevator(ManipMotor motor, ManipElevatorConstants config) {
+
+        if (absSetup && syncAbsEncoderInit) {
+            synchronizeAbsoluteEncoder();
+        }
+
+        if (!config.kEnableAdvanced) {
+            this.motor = motor;
+        } else {
+            this.motor = motor;
+            this.elevatorConstants = config;
+            this.isAdvancedEnabled = true;
+
+            this.atMin = new Trigger(() -> getLinearPosition().isNear(config.kMinHeight, Inches.of(1)));
+            this.atMax = new Trigger(() -> getLinearPosition().isNear(config.kMaxHeight, Inches.of(1)));
+
+            motor.setupRioPID(
+                    new PIDFConfig(config.kElevatorKp,
+                            config.kElevatorKi,
+                            config.kElevatorKd),
+                    config.kMaxVelocity,
+                    config.kMaxAcceleration,
+                    0.01,
+                    true
+            );
+
+            this.feedforward = new ElevatorFeedforward(
+                    config.kElevatorkS,
+                    config.kElevatorkG,
+                    config.kElevatorkV,
+                    config.kElevatorkA
+            );
+
+            this.sysIdRoutine = new SysIdRoutine(
+
+                    new SysIdRoutine.Config(Volts.per(Second).of(1), Volts.of(6), Seconds.of(30)),
+                    new SysIdRoutine.Mechanism(
+                            this::runElevatorVoltage,
+                            log -> {
+                                // Record a frame for the elevator motor.
+                                log.motor("manipElevator")
+                                        .voltage(getAppliedVoltage())
+                                        .linearPosition(distance.mut_replace(getHeightMeters(),
+                                                Meters)) // Records Height in Meters via SysIdRoutineLog.linearPosition
+                                        .linearVelocity(velocity.mut_replace(getVelocityMetersPerSecond(),
+                                                MetersPerSecond)); // Records velocity in MetersPerSecond via SysIdRoutineLog.linearVelocity
+                            },
+                            this));
+
+            this.elevatorSim = new ElevatorSim(
+                    LinearSystemId.createElevatorSystem(
+                            config.gearbox,
+                            config.kElevatorCarriageMass,
+                            config.kElevatorDrumRadius,
+                            config.kElevatorGearing),
+                    config.gearbox,
+                    config.kMinHeight.in(Meters),
+                    config.kMaxHeight.in(Meters),
+                    true,
+                    config.kStartingHeightSim.in(Meters),
+                    0.01,
+                    0.0
+            );
+
+            if (!overrideMech2d) {
+                // Mechanism 2d for simulation, needs overridden for anything more than a basic elevator.
+                Mechanism2d elevator2d = new Mechanism2d(
+                        (config.kMaxHeight.in(Meters) / 5),
+                        config.kMaxHeight.in(Meters) + (config.kMaxHeight.in(Meters) / 10)
+                );
+
+                // Mechanism root for simulation, needs overridden for anything more than a basic elevator.
+                MechanismRoot2d elevatorRoot = elevator2d.getRoot("ManipElevator Root",
+                        (config.kMaxHeight.in(Meters) / 10),
+                        config.kMinHeight.in(Meters));
+
+                this.elevatorMech =
+                        elevatorRoot.append(
+                                new MechanismLigament2d(
+                                        "defaultManipElevator",
+                                        config.kStartingHeightSim.in(Meters),
+                                        90,
+                                        6,
+                                        new Color8Bit(Color.kYellow)
+                                ));
+                // Put Mechanism 2d to dashboard, should be N4T
+                // Telemetry enum needs made...
+                SmartDashboard.putData("Elevator Side View", elevator2d);
+            }
+
+        }
+
+    }
+
+    /**
+     * Subsystem constructor, basic {@link ManipElevator} with a {@link PIDFConfig}.
+     */
+    public ManipElevator(ManipMotor motor, PIDFConfig pidfConfig) {
+        this(motor);
+        motor.configurePIDF(pidfConfig);
+    }
+
+    /**
+     * Subsystem constructor, basic {@link ManipElevator}.
      */
     public ManipElevator(ManipMotor motor) {
         this.motor = motor;
-        motor.setMotorBrake(true);
+    }
+
+    /**
+     * Ran periodically in simulation.
+     * Controls the elevator simulation.
+     */
+    @Override
+    public void simulationPeriodic() {
+        // Set the elevatorSim input, we use volts for this.
+        elevatorSim.setInputVoltage(commandedVoltage.in(Volts));
+
+        // Update the elevator sim, Standard loop time is 20ms.
+        elevatorSim.update(0.02);
+
+        // Finally, we set our simulated encoder's readings and simulated battery voltage
+        motor.setPosition(ManipMath.Elevator.convertDistanceToRotations(
+                elevatorConstants.kElevatorDrumRadius,
+                elevatorConstants.kElevatorGearing,
+                Meters.of(elevatorSim.getPositionMeters())).in(Rotations));
+
+        motor.setVelocity(ManipMath.Elevator.convertDistanceToRotations(
+                elevatorConstants.kElevatorDrumRadius,
+                elevatorConstants.kElevatorGearing,
+                Meters.of(elevatorSim.getVelocityMetersPerSecond())).in(Rotations) * 60);
+
+        // SimBattery estimates loaded battery voltages
+        RoboRioSim.setVInVoltage(
+                BatterySim.calculateDefaultBatteryLoadedVoltage(elevatorSim.getCurrentDrawAmps()));
+
+        // Update the Elevator Mechanism based on simulated elevator height
+        elevatorMech.setLength(getLinearPosition().in(Meters));
+
+        SmartDashboard.putNumber("Elev Volts", getAppliedVoltage().in(Volts));
+        SmartDashboard.putNumber("Battery Voltage", RobotController.getBatteryVoltage());
+    }
+
+    /**
+     * @return The elevatorSim's height for custom Mechanism 2d setups.
+     */
+    public double elevatorSimLength() {
+        return getLinearPosition().in(Meters);
     }
 
     /**
@@ -33,86 +221,294 @@ public class ManipElevator extends SubsystemBase {
     }
 
     /**
-     * A command that moves {@link ManipElevator} at speed.
-     *
-     * @param speed percent to run {@link  ManipElevator} at.
-     * @return a command that moves {@link ManipElevator} at speed.
+     * Adds an absolute encoder to sync to on init. This is not used for actual control
+     * but recommended to keep elevator position on boot. Can be called in init.
      */
-    public Command setSpeed(double speed) {
-        return runEnd(
-                () -> {
-                    limitSwitchFunction();
-                    motor.set(speed);
-                },
-                motor::stopMotor);
+    public void addAbsoluteEncoderValue(double absEncoderDegrees) {
+        absEncoderAngle.mut_replace(absEncoderDegrees - elevatorConstants.kAbsEncoderOffset, Degrees);
+        this.absSetup = true;
     }
 
     /**
-     * A command that moves {@link ManipElevator} to setpoint.
-     *
-     * @param setpoint value to move to
-     * @return a command that moves {@link ManipElevator} to setpoint.
+     * Determines whether to sync the absolute encoder in the
+     * {@link ManipElevator} class or not. This is enabled by default.
      */
-    public Command setReference(double setpoint) {
-        return runEnd(
-                () -> {
-                    limitSwitchFunction();
-                    motor.setReference(setpoint);
-                },
-                motor::stopMotor);
+    public void setSyncAbsEncoderInit(boolean syncAbsEncoderInit) {
+        if (absSetup) {
+            this.syncAbsEncoderInit = syncAbsEncoderInit;
+        } else {
+            DriverStation.reportWarning("Absolute encoder for ManipElevator is not set, cannot run setSyncAbsEncoderInit", true);
+        }
     }
 
     /**
-     * Stops the {@link ManipElevator}
+     * Seeds inbuilt encoder with absolute encoder value.
+     * Syncs on init by default.
      */
-    public void stopElevator() {
-        motor.stopMotor();
+    public void synchronizeAbsoluteEncoder() {
+        motor.setPosition(Rotations.of(absEncoderAngle.in(Degrees)).in(Rotations));
     }
 
     /**
-     * A command to stop the {@link ManipElevator}
-     *
-     * @return a command to stop the {@link ManipElevator}.
+     * Disables native Mech2d
      */
-    public Command stopElevatorCommand() {
-        return motor.stopMotorCommand();
+    public void overrideMech2d(boolean overrideMech2d) {
+        if (isAdvancedEnabled) {
+            this.overrideMech2d = overrideMech2d;
+        } else {
+            DriverStation.reportError("Advanced ManipElevator is required for overrideMech2d()", true);
+        }
     }
 
     /**
-     * Sets the topLimitSwitch {@link DigitalInput} for {@link ManipElevator}.
+     * Runs the SysId routine to tune the elevator
      *
-     * @param topLimitSwitch top limit switch {@link DigitalInput}.
+     * @return SysId Routine command
      */
-    public void setTopLimitSwitch(DigitalInput topLimitSwitch) {
-        this.topLimitSwitch = topLimitSwitch;
+    public Command runSysIdRoutine() {
+        if (isAdvancedEnabled) {
+            return (sysIdRoutine.dynamic(SysIdRoutine.Direction.kForward).until(atMax))
+                    .andThen(sysIdRoutine.dynamic(SysIdRoutine.Direction.kReverse).until(atMin))
+                    .andThen(sysIdRoutine.quasistatic(SysIdRoutine.Direction.kForward).until(atMax))
+                    .andThen(sysIdRoutine.quasistatic(SysIdRoutine.Direction.kReverse).until(atMin))
+                    .andThen(Commands.print("DONE"));
+        } else {
+            DriverStation.reportWarning("Advanced ManipElevator is not setup, for safety SysID is disabled", true);
+            return Commands.none();
+        }
     }
 
     /**
-     * Sets the bottomLimitSwitch {@link DigitalInput} for {@link ManipElevator}.
-     *
-     * @param bottomLimitSwitch bottom limit switch {@link DigitalInput}.
+     * @return the {@link ManipElevator} calculated appliedVoltage.
      */
-    public void setBottomLimitSwitch(DigitalInput bottomLimitSwitch) {
-        this.bottomLimitSwitch = bottomLimitSwitch;
+    public Voltage getAppliedVoltage() {
+        return Volts.of(Math.abs((commandedVoltage.in(Volts) / 12) * RobotController.getBatteryVoltage()));
+    }
+
+    /**
+     * @return the {@link ManipElevator} commandedVoltage.
+     */
+    public Voltage getCommandedVoltage() {
+        return commandedVoltage;
+    }
+
+    /**
+     * Get Elevator Velocity
+     *
+     * @return Elevator Velocity
+     */
+    public LinearVelocity getLinearVelocity()
+    {
+        return ManipMath.Elevator.convertRotationsToDistance(
+                elevatorConstants.kElevatorDrumRadius,
+                elevatorConstants.kElevatorGearing,
+                Rotations.of(motor.getVelocity())).per(Minute);
+    }
+
+    /**
+     * Get the height of the Elevator
+     *
+     * @return Height of the elevator
+     */
+    public Distance getLinearPosition()
+    {
+        return ManipMath.Elevator.convertRotationsToDistance(
+                elevatorConstants.kElevatorDrumRadius,
+                elevatorConstants.kElevatorGearing,
+                Rotations.of(motor.getPosition()));
+    }
+
+    /**
+     * Get the height in meters.
+     *
+     * @return Height in meters
+     */
+    public double getHeightMeters()
+    {
+        return (motor.getPosition() / elevatorConstants.kElevatorGearing) *
+                (2 * Math.PI * elevatorConstants.kElevatorDrumRadius);
+    }
+
+    /**
+     * The velocity of the elevator in meters per second.
+     *
+     * @return velocity in meters per second
+     */
+    public double getVelocityMetersPerSecond()
+    {
+        return ((motor.getVelocity() / 60)/ elevatorConstants.kElevatorGearing) *
+                (2 * Math.PI * elevatorConstants.kElevatorDrumRadius);
+    }
+
+    /**
+     * A trigger for when the height is at an acceptable tolerance.
+     *
+     * @param height    Height in Meters
+     * @param tolerance Tolerance in meters.
+     * @return {@link Trigger}
+     */
+    public Trigger atHeight(double height, double tolerance)
+    {
+        return new Trigger(() -> MathUtil.isNear(height,
+                getHeightMeters(),
+                tolerance));
+    }
+
+    /**
+     * Near the maximum height of the elevator within X millimeters.
+     *
+     * @param toleranceMillimeters Tolerance of the Elevator.
+     * @return is near the maximum of the elevator.
+     */
+    public boolean nearMax(double toleranceMillimeters) {
+        return getLinearPosition().isNear(elevatorConstants.kMaxHeight, Meters.convertFrom(toleranceMillimeters, Millimeters));
+
+    }
+
+    /**
+     * Near the minimum height of the elevator in within X millimeters.
+     *
+     * @param toleranceMillimeters Tolerance of the Elevator.
+     * @return is near the minimum of the elevator.
+     */
+    public boolean nearMin(double toleranceMillimeters) {
+        return getLinearPosition().isNear(elevatorConstants.kMinHeight, Meters.convertFrom(toleranceMillimeters, Millimeters));
+
+    }
+
+    /**
+     * Run the control loop to reach and maintain the setpoint from the preferences.
+     * If using basic control setpoint is in sensor units.
+     */
+    public void reachSetpoint(double setpointInches) {
+        if (isAdvancedEnabled) {
+            limitSwitchFunction();
+            double output = MathUtil.clamp(
+                    motor.getRioController().calculate(getHeightMeters(), Meters.convertFrom(setpointInches, Inches)) +
+                            feedforward.calculateWithVelocities(getVelocityMetersPerSecond(),
+                                    motor.getRioController().getSetpoint().velocity), -7, 7);
+
+            commandedVoltage.mut_replace(Volts.of(output));
+            motor.setVoltage(output);
+
+        } else {
+            limitSwitchFunction();
+            motor.setReference(setpointInches);
+        }
+    }
+
+    /**
+     * Basic method to run the elevator at commanded speed.
+     */
+    public void runElevatorSpeed(double speed) {
+        limitSwitchFunction();
+        commandedVoltage.mut_replace(Volts.of(12 * -speed));
+        motor.set(-speed);
+    }
+
+    /**
+     * Basic method to run the elevator at commanded voltage.
+     */
+    public void runElevatorVoltage(Voltage volts) {
+        limitSwitchFunction();
+        commandedVoltage.mut_replace(volts);
+        motor.setVoltage(volts);
+    }
+
+    /**
+     * Runs reachSetpoint as a {@link Command}.
+     */
+    public Command setGoal(double setpointInches) {
+        return run(() -> reachSetpoint(setpointInches));
+    }
+
+    /**
+     * Runs runElevatorSpeed as a {@link Command}.
+     */
+    public Command runElevatorSpeedCommand(double speed) {
+        return run(() -> runElevatorSpeed(speed));
+    }
+
+    /**
+     * Runs runElevatorVoltage as a {@link Command}.
+     */
+    public Command runElevatorVoltageCommand(Voltage volts) {
+        return run(() -> runElevatorVoltage(volts));
+    }
+
+    /**
+     * Sets the {@link Trigger} for when the top limit switch is hit for {@link ManipElevator}.
+     *
+     * @param topLimitHit top limit switch {@link Trigger}.
+     */
+    public void setTopLimitSwitch(Trigger topLimitHit) {
+        this.topLimitHit = topLimitHit;
+    }
+
+    /**
+     * Sets the {@link Trigger} for when the bottom limit switch is hit for {@link ManipElevator}.
+     *
+     * @param bottomLimitHit bottom limit switch {@link Trigger}.
+     */
+    public void setBottomLimitSwitch(Trigger bottomLimitHit) {
+        this.bottomLimitHit = bottomLimitHit;
     }
 
     /**
      * Function that sees if there's active limit switches then stops the {@link ManipElevator} if one is hit.
+     * Also sets soft limits based off of given Min and Max positions.
      */
     public void limitSwitchFunction() {
-        if (topLimitSwitch != null) {
-            if (motor.getAppliedOutput() > 0 && topLimitSwitch.get()) {
-                motor.stopMotor();
+
+        if (atMax.getAsBoolean() || atMin.getAsBoolean()) {
+            stopElevator();
+        }
+
+        if (topLimitHit != null) {
+            if (motor.getAppliedOutput() > 0 && bottomLimitHit.getAsBoolean()) {
+                stopElevator();
             } else {
-                // Stop stopping the motor
+                Commands.none(); // Stop stopping the arm
             }
         }
-        if (bottomLimitSwitch != null) {
-            if (motor.getAppliedOutput() < 0 && bottomLimitSwitch.get()) {
-                motor.stopMotor();
+        if (bottomLimitHit != null) {
+            if (motor.getAppliedOutput() < 0 && bottomLimitHit.getAsBoolean()) {
+                stopElevator();
             } else {
-                // Stop stopping the motor
+                Commands.none(); // Stop stopping the arm
             }
         }
+    }
+
+    /**
+     * A command to be used as a default command to stow the elevator.
+     * Use toggleAutoStow() to toggle it on and off.
+     * It's good for if you want it to stow but want safety or to be able to control manually.
+     */
+    public Command autoStowWithOverride(double stowHeight) {
+        return run(() -> {
+            if (!defaultCommandOverride) {
+                reachSetpoint(stowHeight);
+            } else {
+                Commands.none();
+            }
+        });
+    }
+
+    /**
+     * Toggles auto-stow of defaultCommandOverride
+     */
+    public Command toggleAutoStow() {
+        return run(() -> {
+            defaultCommandOverride = !defaultCommandOverride;
+        });
+    }
+
+    /**
+     * Stops the elevator.
+     */
+    public void stopElevator() {
+        motor.stopMotor();
+        commandedVoltage.mut_replace(Volts.of(0));
     }
 }

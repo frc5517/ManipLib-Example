@@ -1,6 +1,7 @@
 package maniplib.motors;
 
 import edu.wpi.first.math.controller.ProfiledPIDController;
+import edu.wpi.first.math.system.plant.DCMotor;
 import edu.wpi.first.units.measure.Voltage;
 import edu.wpi.first.wpilibj2.command.Command;
 import maniplib.utils.PIDControlType;
@@ -30,6 +31,26 @@ public abstract class ManipMotor {
      * Clear the sticky faults on the motor controller.
      */
     public abstract void clearStickyFaults();
+
+    /**
+     * Used to pass the mechanism gearbox to the motor for sim.
+     */
+    public abstract void setGearbox(DCMotor gearbox);
+
+    /**
+     * @return The applied output for sim use.
+     */
+    public abstract double getSimAppliedOutput();
+
+    /**
+     * Iterates Rev's sim, does nothing on CTRE devices.
+     */
+    public abstract void iterateRevSim(double velocity, double vbus, double dt);
+
+    /**
+     * Not implemented, does nothing on Rev devices,
+     */
+    public abstract void iterateCTRESim();
 
     /**
      * Sets up the {@link ManipSparkMax} to use rioPID.
@@ -179,6 +200,13 @@ public abstract class ManipMotor {
      * @return Position in meters or degrees.
      */
     public abstract double getPosition();
+
+    /**
+     * Set the integrated encoder velocity.
+     *
+     * @param velocity Integrated encoder velocity. Should be meters per second or degrees per second.
+     */
+    public abstract void setVelocity(double velocity);
 
     /**
      * Set the integrated encoder position.

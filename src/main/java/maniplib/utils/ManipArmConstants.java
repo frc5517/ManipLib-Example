@@ -46,8 +46,8 @@ public class ManipArmConstants {
      * @param kArmKi PID kI Tuning Value.
      * @param kArmKd PID kD Tuning Value.
      * @param kArmkS FeedForward kS Tuning Value. volts(V)
-     * @param kArmkG FeedForward kG Tuning Value. volts(V)
-     * @param kArmkV FeedForward kV Tuning Value. volts(V)
+     * @param kArmkG FeedForward kV Tuning Value. volt per velocity (V/(m/s))
+     * @param kArmkV FeedForward kA Tuning Value. volt per acceleration (V/(m/s²))
      * @param kArmkA FeedForward kA Tuning Value. volts(V)
      * @param kArmReduction Gear ratio of the arm, use gearbox and sprockets.
      * @param kArmMassLbs How much the arm weighs in pounds.
@@ -99,9 +99,9 @@ public class ManipArmConstants {
         this.kArmReduction = kArmReduction;
         this.kArmMass = Kilograms.convertFrom(kArmMassLbs, Pounds);
         this.kArmLength = Inches.of(kArmLengthInches).in(Meters);
-        this.kArmStartingAngle = Radians.of(kArmStartingAngle);
-        this.kMinAngle = Radians.of(Units.degreesToRadians(kMinAngle));
-        this.kMaxAngle = Radians.of(Units.degreesToRadians(kMaxAngle));
+        this.kArmStartingAngle = Degrees.of(kArmStartingAngle);
+        this.kMinAngle = Degrees.of(kMinAngle);
+        this.kMaxAngle = Degrees.of(kMaxAngle);
         this.kArmInverted = kArmInverted;
         this.kArmRampRate = kArmRampRate;
         this.kArmOffsetToHorizantalZero = Rotations.of(kArmOffsetToHorizantalZero);

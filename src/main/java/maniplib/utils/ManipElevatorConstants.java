@@ -31,6 +31,8 @@ public class ManipElevatorConstants {
     public final int kElevatorCurrentLimit;
     public final double kMaxVelocity;
     public final double kMaxAcceleration;
+    // Offset for an optional but heavily recommended abs encoder
+    public final double kAbsEncoderOffset;
     // Whether to use basic or advanced controls and sim.
     public final boolean kEnableAdvanced;
 
@@ -45,8 +47,8 @@ public class ManipElevatorConstants {
      * @param kElevatorkV FeedForward kV Tuning Value. volt per velocity (V/(m/s))
      * @param kElevatorkA FeedForward kA Tuning Value. volt per acceleration (V/(m/s²))
      * @param kElevatorkG FeedForward kG Tuning Value. volts (V)
-     * @param kElevatorGearing Gear ratio of the elevator, use gearbox and sprockets.
-     * @param kElevatorDrumRadiusInches Radius of the drum if using a continuous elevator, set 0 if not.
+     * @param kElevatorGearing Gear ratio of the elevator, use gearbox w/o sprockets.
+     * @param kElevatorDrumRadiusInches Radius of the drum, sprocket radius if using chain.
      * @param kElevatorCarriageMassLbs How much the carriage weighs in pounds.
      * @param kStartingSimHeightInches Where the elevator sim should set the elevator on start, in inches.
      * @param kMaxHeightInches Elevators max height in inches. Used for soft limits as well.
@@ -55,6 +57,7 @@ public class ManipElevatorConstants {
      * @param kElevatorCurrentLimit Elevators current limit. 40 is recommended for most.
      * @param kMaxVelocityMps Elevators max velocity in meters per second.
      * @param kMaxAccelerationMps Elevators max acceleration in meters per second.
+     * @param kAbsEncoderOffset Offset for an optional but heavily recommended abs encoder. Set elevator to kMinHeight then input the raw abs output.
      * @param kEnableAdvanced Determines whether to use advanced control and sim.
      */
     public ManipElevatorConstants(
@@ -76,6 +79,7 @@ public class ManipElevatorConstants {
             int kElevatorCurrentLimit,
             double kMaxVelocityMps,
             double kMaxAccelerationMps,
+            double kAbsEncoderOffset,
             boolean kEnableAdvanced
             ) {
         this.gearbox = gearbox;
@@ -87,15 +91,16 @@ public class ManipElevatorConstants {
         this.kElevatorkA = kElevatorkA;
         this.kElevatorkG = kElevatorkG;
         this.kElevatorGearing = kElevatorGearing;
-        this.kElevatorDrumRadius = Units.inchesToMeters(kElevatorDrumRadiusInches); // // Convert inches to meter double.
+        this.kElevatorDrumRadius = Meters.convertFrom(kElevatorDrumRadiusInches, Inches); // // Convert inches to meter double.
         this.kElevatorCarriageMass = Kilograms.convertFrom(kElevatorCarriageMassLbs, Pounds);
         this.kStartingHeightSim = Meters.of(Meters.convertFrom(kStartingSimHeightInches, Inches)); // Convert inches to meter units.
         this.kMaxHeight = Meters.of(Meters.convertFrom(kMaxHeightInches, Inches)); // Convert inches to meter units.
         this.kMinHeight = Meters.of(Meters.convertFrom(kMinHeightInches, Inches)); // Convert inches to meter units.
         this.kElevatorRampRate = kElevatorRampRate;
         this.kElevatorCurrentLimit = kElevatorCurrentLimit;
-        this.kMaxVelocity = Meters.of(kMaxVelocityMps).per(Second).per(Second).in(MetersPerSecondPerSecond);
+        this.kMaxVelocity = Meters.of(kMaxVelocityMps).per(Second).in(MetersPerSecond);
         this.kMaxAcceleration = Meters.of(kMaxAccelerationMps).per(Second).per(Second).in(MetersPerSecondPerSecond);
+        this.kAbsEncoderOffset = kAbsEncoderOffset;
         this.kEnableAdvanced = kEnableAdvanced;
     }
 }

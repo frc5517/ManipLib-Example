@@ -7,14 +7,12 @@ import edu.wpi.first.wpilibj.smartdashboard.MechanismRoot2d;
 import edu.wpi.first.wpilibj.util.Color;
 import edu.wpi.first.wpilibj.util.Color8Bit;
 import maniplib.utils.ManipArmConstants;
+import maniplib.utils.ManipElevatorConstants;
 
-import static edu.wpi.first.units.Units.Degrees;
+import static edu.wpi.first.units.Units.*;
 import static frc.robot.Constants.ArmConstants.armConfig;
 
 public class Constants {
-
-    public static final Mechanism2d sideView = new Mechanism2d(armConfig.kArmLength * 2, 1 + armConfig.kArmLength);
-
     public static final class ArmConstants {
         public static final double armSpeed = 0.15;
         public static final double armSetpoint = 5;
@@ -22,13 +20,13 @@ public class Constants {
         public static final ManipArmConstants armConfig =
                 new ManipArmConstants(
                         DCMotor.getNEO(1),
-                        2.354,
+                        3,
                         0,
                         0,
                         0,
-                        0, // 60:1 with 12:28 sprockets.
-                        .2,
-                        0.0683,
+                        0,
+                        0,
+                        0,
                         140,
                         3,
                         17,
@@ -36,12 +34,12 @@ public class Constants {
                         -90,
                         90,
                         false,
-                        0.5,
-                        30,
+                        .5,
+                        0,
                         0.01,
-                        30,
-                        5,
-                        5,
+                        40,
+                        90,
+                        180,
                         true
                 );
     }
@@ -49,6 +47,30 @@ public class Constants {
     public static final class ElevatorConstants {
         public static final double elevatorSpeed = .3;
         public static final double elevatorSetpoint = 10;
+
+        public static final ManipElevatorConstants elevatorConfig =
+                new ManipElevatorConstants(
+                        DCMotor.getNEO(1),
+                        26.722,
+                        0,
+                        1.6047,
+                        0.01964,
+                        3.894,
+                        0.173,
+                        0.91274,
+                        50,
+                        2,
+                        8,
+                        0,
+                        72,
+                        0,
+                        0.1,
+                        40,
+                        4,
+                        8,
+                        0,
+                        true
+                );
     }
 
     public static final class IntakeShooterConstants {

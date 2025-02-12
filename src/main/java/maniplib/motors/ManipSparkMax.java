@@ -2,6 +2,7 @@ package maniplib.motors;
 
 import com.revrobotics.REVLibError;
 import com.revrobotics.RelativeEncoder;
+import com.revrobotics.sim.SparkMaxSim;
 import com.revrobotics.spark.ClosedLoopSlot;
 import com.revrobotics.spark.SparkBase.ControlType;
 import com.revrobotics.spark.SparkBase.PersistMode;
@@ -13,11 +14,13 @@ import com.revrobotics.spark.config.ClosedLoopConfig.FeedbackSensor;
 import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
 import com.revrobotics.spark.config.SparkMaxConfig;
 import edu.wpi.first.math.controller.ProfiledPIDController;
+import edu.wpi.first.math.system.plant.DCMotor;
 import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.units.measure.Voltage;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.Commands;
 import maniplib.utils.PIDControlType;
 import maniplib.utils.PIDFConfig;
 
@@ -43,7 +46,7 @@ public class ManipSparkMax extends ManipMotor {
     /**
      * Supplier for the velocity of the motor controller.
      */
-    private final Supplier<Double> velocity;
+    private Supplier<Double> velocity;
     /**
      * Supplier for the position of the motor controller.
      */
@@ -72,7 +75,14 @@ public class ManipSparkMax extends ManipMotor {
      * {@link ControlType} for the spark to use
      */
     private ControlType sparkControlType = ControlType.kPosition;
-
+    /**
+     * {@link DCMotor} used for sim. Passed in from the mechanism.
+     */
+    private DCMotor gearbox = null;
+    /**
+     * {@link com.revrobotics.sim.SparkMaxSim} for the mechanism.
+     */
+    private SparkMaxSim sparkMaxSim = null;
 
     /**
      * Initialize the manip motor.
@@ -110,7 +120,13 @@ public class ManipSparkMax extends ManipMotor {
      * @param useRioPID       boolean to enable rioPID.
      */
     public void setupRioPID(PIDFConfig pidfConfig, double maxVelocity, double maxAcceleration, double tolerance, boolean useRioPID) {
-        rioPID = new ProfiledPIDController(pidfConfig.p, pidfConfig.i, pidfConfig.d, new TrapezoidProfile.Constraints(maxVelocity, maxAcceleration));
+        rioPID = new ProfiledPIDController(
+                pidfConfig.p,
+                pidfConfig.i,
+                pidfConfig.d,
+                new TrapezoidProfile.Constraints(
+                        maxVelocity,
+                        maxAcceleration));
         rioPID.setTolerance(tolerance);
         useRioPID(useRioPID);
     }
@@ -245,6 +261,33 @@ public class ManipSparkMax extends ManipMotor {
     @Override
     public void clearStickyFaults() {
         configureSparkMax(motor::clearFaults);
+    }
+
+    @Override
+    public void setGearbox(DCMotor gearbox) {
+        this.gearbox = gearbox;
+        this.sparkMaxSim = new SparkMaxSim(motor, gearbox);
+    }
+
+    @Override
+    public double getSimAppliedOutput() {
+        if (sparkMaxSim != null) {
+            return sparkMaxSim.getAppliedOutput();
+        } else {
+            return 0;
+        }
+    }
+
+    @Override
+    public void iterateRevSim(double velocity, double vbus, double dt) {
+        if (sparkMaxSim != null) {
+            sparkMaxSim.iterate(velocity, vbus, dt);
+        }
+    }
+
+    @Override
+    public void iterateCTRESim() {
+        // Do nothing, this is a rev device.
     }
 
     /**
@@ -464,6 +507,11 @@ public class ManipSparkMax extends ManipMotor {
     @Override
     public double getPosition() {
         return position.get();
+    }
+
+    @Override
+    public void setVelocity(double velocity) {
+        this.velocity = () -> velocity;
     }
 
     /**
