@@ -66,6 +66,11 @@ public class Robot extends TimedRobot {
     }
 
     @Override
+    public void simulationPeriodic() {
+        m_robotContainer.updateMechSim();
+    }
+
+    @Override
     public void testInit() {
         CommandScheduler.getInstance().cancelAll();
     }
