@@ -1,7 +1,6 @@
 package maniplib.utils;
 
 import edu.wpi.first.math.system.plant.DCMotor;
-import edu.wpi.first.math.util.Units;
 import edu.wpi.first.units.measure.Distance;
 
 import static edu.wpi.first.units.Units.*;
@@ -40,27 +39,27 @@ public class ManipElevatorConstants {
     /**
      * Sets the constant values for {@link maniplib.ManipElevator}.
      *
-     * @param gearbox DCMotor used to determine how many of which motor is being used.
-     * @param kElevatorKp PID kP Tuning Value.
-     * @param kElevatorKi PID kI Tuning Value.
-     * @param kElevatorKd PID kD Tuning Value.
-     * @param kElevatorkS FeedForward kS Tuning Value. volts(V)
-     * @param kElevatorkV FeedForward kV Tuning Value. volt per velocity (V/(m/s))
-     * @param kElevatorkA FeedForward kA Tuning Value. volt per acceleration (V/(m/s²))
-     * @param kElevatorkG FeedForward kG Tuning Value. volts (V)
-     * @param kElevatorGearing Gear ratio of the elevator, use gearbox w/o sprockets.
+     * @param gearbox                   DCMotor used to determine how many of which motor is being used.
+     * @param kElevatorKp               PID kP Tuning Value.
+     * @param kElevatorKi               PID kI Tuning Value.
+     * @param kElevatorKd               PID kD Tuning Value.
+     * @param kElevatorkS               FeedForward kS Tuning Value. volts(V)
+     * @param kElevatorkV               FeedForward kV Tuning Value. volt per velocity (V/(m/s))
+     * @param kElevatorkA               FeedForward kA Tuning Value. volt per acceleration (V/(m/s²))
+     * @param kElevatorkG               FeedForward kG Tuning Value. volts (V)
+     * @param kElevatorGearing          Gear ratio of the elevator, use gearbox w/o sprockets.
      * @param kElevatorDrumRadiusInches Radius of the drum, sprocket radius if using chain.
-     * @param kElevatorCarriageMassLbs How much the carriage weighs in pounds.
-     * @param kStartingSimHeightInches Where the elevator sim should set the elevator on start, in inches.
-     * @param kMaxHeightInches Elevators max height in inches. Used for soft limits as well.
-     * @param kMinHeightInches Elevators min height in inches. Used for soft limits as well.
-     * @param kIsInverted Whether to invert the lead motor. Positive speed should go up.
-     * @param kElevatorRampRate Elevators ramp rate. 0.1 is recommended for most.
-     * @param kElevatorCurrentLimit Elevators current limit. 40 is recommended for most.
-     * @param kMaxVelocityMps Elevators max velocity in meters per second.
-     * @param kMaxAccelerationMps Elevators max acceleration in meters per second.
-     * @param kAbsEncoderOffset Offset for an optional but heavily recommended abs encoder. Set elevator to kMinHeight then input the raw abs output.
-     * @param kEnableAdvanced Determines whether to use advanced control and sim.
+     * @param kElevatorCarriageMassLbs  How much the carriage weighs in pounds.
+     * @param kStartingSimHeightInches  Where the elevator sim should set the elevator on start, in inches.
+     * @param kMaxHeightInches          Elevators max height in inches. Used for soft limits as well.
+     * @param kMinHeightInches          Elevators min height in inches. Used for soft limits as well.
+     * @param kIsInverted               Whether to invert the lead motor. Positive speed should go up.
+     * @param kElevatorRampRate         Elevators ramp rate. 0.1 is recommended for most.
+     * @param kElevatorCurrentLimit     Elevators current limit. 40 is recommended for most.
+     * @param kMaxVelocityMps           Elevators max velocity in meters per second.
+     * @param kMaxAccelerationMps       Elevators max acceleration in meters per second.
+     * @param kAbsEncoderOffset         Offset for an optional but heavily recommended abs encoder. Set elevator to kMinHeight then input the raw abs output.
+     * @param kEnableAdvanced           Determines whether to use advanced control and sim.
      */
     public ManipElevatorConstants(
             DCMotor gearbox,
@@ -84,7 +83,7 @@ public class ManipElevatorConstants {
             double kMaxAccelerationMps,
             double kAbsEncoderOffset,
             boolean kEnableAdvanced
-            ) {
+    ) {
         this.gearbox = gearbox;
         this.kElevatorKp = kElevatorKp;
         this.kElevatorKi = kElevatorKi;

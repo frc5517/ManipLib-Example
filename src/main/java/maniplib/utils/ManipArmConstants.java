@@ -1,7 +1,6 @@
 package maniplib.utils;
 
 import edu.wpi.first.math.system.plant.DCMotor;
-import edu.wpi.first.math.util.Units;
 import edu.wpi.first.units.measure.Angle;
 
 import static edu.wpi.first.units.Units.*;
@@ -41,28 +40,28 @@ public class ManipArmConstants {
     /**
      * Sets the constant values for {@link maniplib.ManipArm}.
      *
-     * @param gearbox DCMotor used to determine how many of which motor is being used.
-     * @param kArmKp PID kP Tuning Value.
-     * @param kArmKi PID kI Tuning Value.
-     * @param kArmKd PID kD Tuning Value.
-     * @param kArmkS FeedForward kS Tuning Value. volts(V)
-     * @param kArmkG FeedForward kV Tuning Value. volt per velocity (V/(m/s))
-     * @param kArmkV FeedForward kA Tuning Value. volt per acceleration (V/(m/s²))
-     * @param kArmkA FeedForward kA Tuning Value. volts(V)
-     * @param kArmReduction Gear ratio of the arm, use gearbox and sprockets.
-     * @param kArmMassLbs How much the arm weighs in pounds.
-     * @param kArmLengthInches How long the arm is in inches. Used in sim.
-     * @param kArmStartingAngle Where the arm sim should set the arm on start.
-     * @param kMinAngle Arms max height in degrees. Used for soft limits as well.
-     * @param kMaxAngle Arms min height in degrees. Used for soft limits as well.
-     * @param kArmInverted Whether to invert the drive direction of the arm. runArm(.1); should go up.
-     * @param kArmRampRate Elevators ramp rate. 0.5 is recommended for most.
-     * @param kArmOffsetToHorizantalZero Absolute encoder offset. Arm should be horizontal to the floor at 0.
-     * @param kArmAllowedClosedLoopError Allowed error in the pid control in degrees.
-     * @param kArmStallCurrentLimitAmps The arms stall limit. 30 is recommended for most.
-     * @param kArmMaxVelocityRPM Arms max velocity in rotations per second.
+     * @param gearbox                         DCMotor used to determine how many of which motor is being used.
+     * @param kArmKp                          PID kP Tuning Value.
+     * @param kArmKi                          PID kI Tuning Value.
+     * @param kArmKd                          PID kD Tuning Value.
+     * @param kArmkS                          FeedForward kS Tuning Value. volts(V)
+     * @param kArmkG                          FeedForward kV Tuning Value. volt per velocity (V/(m/s))
+     * @param kArmkV                          FeedForward kA Tuning Value. volt per acceleration (V/(m/s²))
+     * @param kArmkA                          FeedForward kA Tuning Value. volts(V)
+     * @param kArmReduction                   Gear ratio of the arm, use gearbox and sprockets.
+     * @param kArmMassLbs                     How much the arm weighs in pounds.
+     * @param kArmLengthInches                How long the arm is in inches. Used in sim.
+     * @param kArmStartingAngle               Where the arm sim should set the arm on start.
+     * @param kMinAngle                       Arms max height in degrees. Used for soft limits as well.
+     * @param kMaxAngle                       Arms min height in degrees. Used for soft limits as well.
+     * @param kArmInverted                    Whether to invert the drive direction of the arm. runArm(.1); should go up.
+     * @param kArmRampRate                    Elevators ramp rate. 0.5 is recommended for most.
+     * @param kArmOffsetToHorizantalZero      Absolute encoder offset. Arm should be horizontal to the floor at 0.
+     * @param kArmAllowedClosedLoopError      Allowed error in the pid control in degrees.
+     * @param kArmStallCurrentLimitAmps       The arms stall limit. 30 is recommended for most.
+     * @param kArmMaxVelocityRPM              Arms max velocity in rotations per second.
      * @param kArmMaxAccelerationRPMperSecond Arms max Acceleration in rotations per second. Depends on specific arm config for accurate sim speed.
-     * @param kEnableAdvanced Determines whether to use advanced control and sim.
+     * @param kEnableAdvanced                 Determines whether to use advanced control and sim.
      */
     public ManipArmConstants(
             DCMotor gearbox,

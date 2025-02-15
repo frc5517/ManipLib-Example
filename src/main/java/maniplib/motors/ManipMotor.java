@@ -200,18 +200,18 @@ public abstract class ManipMotor {
     public abstract double getVelocity();
 
     /**
-     * Get the position of the integrated encoder.
-     *
-     * @return Position in meters or degrees.
-     */
-    public abstract double getPosition();
-
-    /**
      * Set the integrated encoder velocity.
      *
      * @param velocity Integrated encoder velocity. Should be meters per second or degrees per second.
      */
     public abstract void setVelocity(double velocity);
+
+    /**
+     * Get the position of the integrated encoder.
+     *
+     * @return Position in meters or degrees.
+     */
+    public abstract double getPosition();
 
     /**
      * Set the integrated encoder position.

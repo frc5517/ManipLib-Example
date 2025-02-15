@@ -9,12 +9,10 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
-import maniplib.ManipElevator;
 import maniplib.ManipArm;
+import maniplib.ManipElevator;
 import maniplib.Telemetry;
 import maniplib.motors.ManipSparkMax;
-
-import static edu.wpi.first.units.Units.Volts;
 
 public class RobotContainer {
 

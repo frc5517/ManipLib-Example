@@ -33,16 +33,14 @@ public class ManipMath {
 
     }
 
-    public static class Elevator
-    {
+    public static class Elevator {
         /**
          * Convert {@link Distance} into {@link Angle}
          *
          * @param distance Distance, usually Meters.
          * @return {@link Angle} equivalent to rotations of the motor.
          */
-        public static Angle convertDistanceToRotations(double drumRadius, double gearing, Distance distance)
-        {
+        public static Angle convertDistanceToRotations(double drumRadius, double gearing, Distance distance) {
             return Rotations.of(distance.in(Meters) /
                     (drumRadius * 2 * Math.PI) *
                     gearing);
@@ -54,8 +52,7 @@ public class ManipMath {
          * @param rotations Rotations of the motor
          * @return {@link Distance} of the elevator.
          */
-        public static Distance convertRotationsToDistance(double drumRadius, double gearing, Angle rotations)
-        {
+        public static Distance convertRotationsToDistance(double drumRadius, double gearing, Angle rotations) {
             return Meters.of((rotations.in(Rotations) / gearing) *
                     (drumRadius * 2 * Math.PI));
         }

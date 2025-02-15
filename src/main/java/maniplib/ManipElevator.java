@@ -2,7 +2,6 @@ package maniplib;
 
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.controller.ElevatorFeedforward;
-import edu.wpi.first.math.system.plant.LinearSystemId;
 import edu.wpi.first.units.measure.*;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.RobotController;
@@ -33,6 +32,8 @@ public class ManipElevator extends SubsystemBase {
     private final MutLinearVelocity velocity = MetersPerSecond.mutable(0);
     private final MutDistance distance = Meters.mutable(0);
     private final MutAngle absEncoderAngle = Rotations.mutable(0);
+    // Universal motor init
+    private final ManipMotor motor;
     // Triggers for when reaching max movements.
     private Trigger atMin;
     private Trigger atMax;
@@ -44,8 +45,6 @@ public class ManipElevator extends SubsystemBase {
     private boolean isAdvancedEnabled = false;
     private boolean syncAbsEncoderInit = true;
     private boolean defaultCommandOverride = false;
-    // Universal motor init
-    private final ManipMotor motor;
     private ElevatorFeedforward feedforward;
     private ManipElevatorConstants elevatorConstants;
     // SysId Routine
@@ -82,7 +81,7 @@ public class ManipElevator extends SubsystemBase {
                     elevatorConstants.kElevatorRampRate,
                     true,
                     elevatorConstants.kIsInverted
-                );
+            );
 
             motor.setupRioPID(
                     new PIDFConfig(config.kElevatorKp,
@@ -155,17 +154,6 @@ public class ManipElevator extends SubsystemBase {
 
     }
 
-    @Override
-    public void periodic() {
-        if (Telemetry.manipVerbosity.ordinal() <= Telemetry.ManipTelemetry.LOW.ordinal()) {
-            SmartDashboard.putData("Elevator Side", elevator2d);
-        }
-        if (Telemetry.manipVerbosity.ordinal() <= Telemetry.ManipTelemetry.HIGH.ordinal()) {
-            SmartDashboard.putNumber("Elevator Height", getLinearPosition().in(Inches));
-            SmartDashboard.putNumber("Elevator Applied Output", motor.getAppliedOutput());
-        }
-    }
-
     /**
      * Subsystem constructor, basic {@link ManipElevator} with a {@link PIDFConfig}.
      */
@@ -179,6 +167,17 @@ public class ManipElevator extends SubsystemBase {
      */
     public ManipElevator(ManipMotor motor) {
         this.motor = motor;
+    }
+
+    @Override
+    public void periodic() {
+        if (Telemetry.manipVerbosity.ordinal() <= Telemetry.ManipTelemetry.LOW.ordinal()) {
+            SmartDashboard.putData("Elevator Side", elevator2d);
+        }
+        if (Telemetry.manipVerbosity.ordinal() <= Telemetry.ManipTelemetry.HIGH.ordinal()) {
+            SmartDashboard.putNumber("Elevator Height", getLinearPosition().in(Inches));
+            SmartDashboard.putNumber("Elevator Applied Output", motor.getAppliedOutput());
+        }
     }
 
     /**
@@ -292,8 +291,7 @@ public class ManipElevator extends SubsystemBase {
      *
      * @return Elevator Velocity
      */
-    public LinearVelocity getLinearVelocity()
-    {
+    public LinearVelocity getLinearVelocity() {
         return ManipMath.Elevator.convertRotationsToDistance(
                 elevatorConstants.kElevatorDrumRadius,
                 elevatorConstants.kElevatorGearing,
@@ -305,8 +303,7 @@ public class ManipElevator extends SubsystemBase {
      *
      * @return Height of the elevator
      */
-    public Distance getLinearPosition()
-    {
+    public Distance getLinearPosition() {
         return ManipMath.Elevator.convertRotationsToDistance(
                 elevatorConstants.kElevatorDrumRadius,
                 elevatorConstants.kElevatorGearing,
@@ -318,8 +315,7 @@ public class ManipElevator extends SubsystemBase {
      *
      * @return Height in meters
      */
-    public double getHeightMeters()
-    {
+    public double getHeightMeters() {
         return (motor.getPosition() / elevatorConstants.kElevatorGearing) *
                 (2 * Math.PI * elevatorConstants.kElevatorDrumRadius);
     }
@@ -329,9 +325,8 @@ public class ManipElevator extends SubsystemBase {
      *
      * @return velocity in meters per second
      */
-    public double getVelocityMetersPerSecond()
-    {
-        return ((motor.getVelocity() / 60)/ elevatorConstants.kElevatorGearing) *
+    public double getVelocityMetersPerSecond() {
+        return ((motor.getVelocity() / 60) / elevatorConstants.kElevatorGearing) *
                 (2 * Math.PI * elevatorConstants.kElevatorDrumRadius);
     }
 
@@ -342,8 +337,7 @@ public class ManipElevator extends SubsystemBase {
      * @param tolerance Tolerance in meters.
      * @return {@link Trigger}
      */
-    public Trigger atHeight(double height, double tolerance)
-    {
+    public Trigger atHeight(double height, double tolerance) {
         return new Trigger(() -> MathUtil.isNear(height,
                 getHeightMeters(),
                 tolerance));

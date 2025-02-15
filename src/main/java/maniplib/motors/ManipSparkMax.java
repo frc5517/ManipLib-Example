@@ -44,10 +44,6 @@ public class ManipSparkMax extends ManipMotor {
      */
     private final SparkMax motor;
     /**
-     * Supplier for the velocity of the motor controller.
-     */
-    private Supplier<Double> velocity;
-    /**
      * Supplier for the position of the motor controller.
      */
     private final Supplier<Double> position;
@@ -71,6 +67,10 @@ public class ManipSparkMax extends ManipMotor {
      * Determine whether to use revPID or rioPID control.
      */
     public boolean useRioPID = false;
+    /**
+     * Supplier for the velocity of the motor controller.
+     */
+    private Supplier<Double> velocity;
     /**
      * {@link ControlType} for the spark to use
      */
@@ -487,7 +487,7 @@ public class ManipSparkMax extends ManipMotor {
         double output = 0;
         if (Robot.isSimulation()) {
             if (sparkMaxSim != null) {
-                output = sparkMaxSim.getAppliedOutput();   
+                output = sparkMaxSim.getAppliedOutput();
             }
         } else {
             output = motor.getAppliedOutput();
@@ -505,6 +505,11 @@ public class ManipSparkMax extends ManipMotor {
         return velocity.get();
     }
 
+    @Override
+    public void setVelocity(double velocity) {
+        this.velocity = () -> velocity;
+    }
+
     /**
      * Get the position of the integrated encoder.
      *
@@ -513,11 +518,6 @@ public class ManipSparkMax extends ManipMotor {
     @Override
     public double getPosition() {
         return position.get();
-    }
-
-    @Override
-    public void setVelocity(double velocity) {
-        this.velocity = () -> velocity;
     }
 
     /**

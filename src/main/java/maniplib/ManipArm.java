@@ -1,12 +1,13 @@
 package maniplib;
 
 import edu.wpi.first.math.controller.ArmFeedforward;
-import edu.wpi.first.math.system.plant.LinearSystemId;
 import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.units.measure.*;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.RobotController;
-import edu.wpi.first.wpilibj.simulation.*;
+import edu.wpi.first.wpilibj.simulation.BatterySim;
+import edu.wpi.first.wpilibj.simulation.RoboRioSim;
+import edu.wpi.first.wpilibj.simulation.SingleJointedArmSim;
 import edu.wpi.first.wpilibj.smartdashboard.Mechanism2d;
 import edu.wpi.first.wpilibj.smartdashboard.MechanismLigament2d;
 import edu.wpi.first.wpilibj.smartdashboard.MechanismRoot2d;
@@ -108,14 +109,14 @@ public class ManipArm extends SubsystemBase {
                     new SysIdRoutine.Mechanism(
                             this::runArmVoltage,
                             log -> {
-                            // Record a frame for the arm motor.
-                            log.motor("manipArm")
-                                    .voltage(appliedVoltage.mut_replace(motor.getAppliedOutput() *
-                                            RobotController.getBatteryVoltage(), Volts))
-                                    .angularPosition(angle.mut_replace(motor.getPosition(), Rotations))
-                                    .angularVelocity(velocity.mut_replace(motor.getVelocity(), RPM));
-                        },
-                        this));
+                                // Record a frame for the arm motor.
+                                log.motor("manipArm")
+                                        .voltage(appliedVoltage.mut_replace(motor.getAppliedOutput() *
+                                                RobotController.getBatteryVoltage(), Volts))
+                                        .angularPosition(angle.mut_replace(motor.getPosition(), Rotations))
+                                        .angularVelocity(velocity.mut_replace(motor.getVelocity(), RPM));
+                            },
+                            this));
 
             this.armSim = new SingleJointedArmSim(
                     armConstants.gearbox,
@@ -156,19 +157,6 @@ public class ManipArm extends SubsystemBase {
 
     }
 
-    @Override
-    public void periodic() {
-        if (Telemetry.manipVerbosity.ordinal() <= Telemetry.ManipTelemetry.LOW.ordinal()) {
-            if (Robot.isSimulation()) {
-                SmartDashboard.putData("Arm Side View", arm2d);
-            }
-        }
-        if (Telemetry.manipVerbosity.ordinal() <= Telemetry.ManipTelemetry.HIGH.ordinal()) {
-            SmartDashboard.putNumber("Arm Angle", getAngle().in(Degrees));
-            SmartDashboard.putNumber("Arm Applied Output", motor.getAppliedOutput());
-        }
-    }
-
     /**
      * Subsystem constructor, basic {@link ManipArm} with a {@link PIDFConfig}.
      */
@@ -182,6 +170,19 @@ public class ManipArm extends SubsystemBase {
      */
     public ManipArm(ManipMotor motor) {
         this.motor = motor;
+    }
+
+    @Override
+    public void periodic() {
+        if (Telemetry.manipVerbosity.ordinal() <= Telemetry.ManipTelemetry.LOW.ordinal()) {
+            if (Robot.isSimulation()) {
+                SmartDashboard.putData("Arm Side View", arm2d);
+            }
+        }
+        if (Telemetry.manipVerbosity.ordinal() <= Telemetry.ManipTelemetry.HIGH.ordinal()) {
+            SmartDashboard.putNumber("Arm Angle", getAngle().in(Degrees));
+            SmartDashboard.putNumber("Arm Applied Output", motor.getAppliedOutput());
+        }
     }
 
     /**

@@ -14,7 +14,7 @@ import static edu.wpi.first.units.Units.Meters;
 
 public class Constants {
 
-    public static final Mechanism2d         sideRobotView = new Mechanism2d(ArmConstants.armConfig.kArmLength * 2,
+    public static final Mechanism2d sideRobotView = new Mechanism2d(ArmConstants.armConfig.kArmLength * 2,
             ElevatorConstants.elevatorConfig.kMaxHeight.in(
                     Meters) +
                     ArmConstants.armConfig.kArmLength);
@@ -23,8 +23,7 @@ public class Constants {
     public static final MechanismLigament2d kArmMech;
     public static final MechanismLigament2d kElevatorTower;
 
-    static
-    {
+    static {
         kElevatorCarriage = Constants.sideRobotView.getRoot("ElevatorCarriage",
                 ArmConstants.armConfig.kArmLength,
                 ElevatorConstants.elevatorConfig.kStartingHeightSim.in(
