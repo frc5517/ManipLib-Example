@@ -33,6 +33,31 @@ public abstract class ManipMotor {
     public abstract void clearStickyFaults();
 
     /**
+     * Used to internally set motor constants.
+     */
+    public abstract void configureMotor(
+            int stallCurrent,
+            double rampRate,
+            boolean isBrake,
+            boolean isInverted
+    );
+
+    /**
+     * Used to pass the mechanism gearbox to the motor for sim.
+     */
+    public abstract void setGearbox(DCMotor gearbox);
+
+    /**
+     * Iterates Rev's sim, does nothing on CTRE devices.
+     */
+    public abstract void iterateRevSim(double velocity, double vbus, double dt);
+
+    /**
+     * Not implemented, does nothing on Rev devices,
+     */
+    public abstract void iterateCTRESim();
+
+    /**
      * Sets up the {@link ManipSparkMax} to use rioPID.
      *
      * @param pidfConfig      pid settings to use.
@@ -173,6 +198,13 @@ public abstract class ManipMotor {
      * @return velocity in meters per second or degrees per second.
      */
     public abstract double getVelocity();
+
+    /**
+     * Set the integrated encoder velocity.
+     *
+     * @param velocity Integrated encoder velocity. Should be meters per second or degrees per second.
+     */
+    public abstract void setVelocity(double velocity);
 
     /**
      * Get the position of the integrated encoder.

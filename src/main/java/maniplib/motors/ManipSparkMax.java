@@ -10,7 +10,6 @@ import com.revrobotics.spark.SparkBase.ResetMode;
 import com.revrobotics.spark.SparkClosedLoopController;
 import com.revrobotics.spark.SparkLowLevel.MotorType;
 import com.revrobotics.spark.SparkMax;
-import com.revrobotics.spark.SparkSim;
 import com.revrobotics.spark.config.ClosedLoopConfig.FeedbackSensor;
 import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
 import com.revrobotics.spark.config.SparkMaxConfig;
@@ -21,6 +20,7 @@ import edu.wpi.first.units.measure.Voltage;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
+import frc.robot.Robot;
 import maniplib.utils.PIDControlType;
 import maniplib.utils.PIDFConfig;
 
@@ -28,10 +28,10 @@ import java.util.function.Supplier;
 
 import static edu.wpi.first.units.Units.Milliseconds;
 import static edu.wpi.first.units.Units.Seconds;
-import static edu.wpi.first.wpilibj2.command.Commands.*;
+import static edu.wpi.first.wpilibj2.command.Commands.run;
 
 /**
- * An implementation of {@link com.revrobotics.spark.SparkMax} as a {@link ManipMotor}.
+ * An implementation of {@link SparkMax} as a {@link ManipMotor}.
  */
 public class ManipSparkMax extends ManipMotor {
 
@@ -43,10 +43,6 @@ public class ManipSparkMax extends ManipMotor {
      * {@link SparkMax} Instance.
      */
     private final SparkMax motor;
-    /**
-     * Supplier for the velocity of the motor controller.
-     */
-    private final Supplier<Double> velocity;
     /**
      * Supplier for the position of the motor controller.
      */
@@ -72,10 +68,17 @@ public class ManipSparkMax extends ManipMotor {
      */
     public boolean useRioPID = false;
     /**
+     * Supplier for the velocity of the motor controller.
+     */
+    private Supplier<Double> velocity;
+    /**
      * {@link ControlType} for the spark to use
      */
     private ControlType sparkControlType = ControlType.kPosition;
-
+    /**
+     * {@link SparkMaxSim} for the mechanism.
+     */
+    private SparkMaxSim sparkMaxSim = null;
 
     /**
      * Initialize the manip motor.
@@ -113,7 +116,13 @@ public class ManipSparkMax extends ManipMotor {
      * @param useRioPID       boolean to enable rioPID.
      */
     public void setupRioPID(PIDFConfig pidfConfig, double maxVelocity, double maxAcceleration, double tolerance, boolean useRioPID) {
-        rioPID = new ProfiledPIDController(pidfConfig.p, pidfConfig.i, pidfConfig.d, new TrapezoidProfile.Constraints(maxVelocity, maxAcceleration));
+        rioPID = new ProfiledPIDController(
+                pidfConfig.p,
+                pidfConfig.i,
+                pidfConfig.d,
+                new TrapezoidProfile.Constraints(
+                        maxVelocity,
+                        maxAcceleration));
         rioPID.setTolerance(tolerance);
         useRioPID(useRioPID);
     }
@@ -227,6 +236,7 @@ public class ManipSparkMax extends ManipMotor {
 
     /**
      * Returns {@link SparkMax} used for {@link ManipSparkMax}.
+     *
      * @return {@link SparkMax} used for {@link ManipSparkMax}.
      */
     public SparkMax getSparkMax() {
@@ -247,6 +257,35 @@ public class ManipSparkMax extends ManipMotor {
     @Override
     public void clearStickyFaults() {
         configureSparkMax(motor::clearFaults);
+    }
+
+    @Override
+    public void configureMotor(int stallCurrent, double rampRate, boolean isBrake, boolean isInverted) {
+        SparkMaxConfig config = getConfig();
+        config
+                .smartCurrentLimit(stallCurrent)
+                .closedLoopRampRate(rampRate)
+                .idleMode(isBrake ? IdleMode.kBrake : IdleMode.kCoast)
+                .inverted(isInverted);
+        updateConfig(config);
+
+    }
+
+    @Override
+    public void setGearbox(DCMotor gearbox) {
+        this.sparkMaxSim = new SparkMaxSim(motor, gearbox);
+    }
+
+    @Override
+    public void iterateRevSim(double velocity, double vbus, double dt) {
+        if (sparkMaxSim != null) {
+            sparkMaxSim.iterate(velocity, vbus, dt);
+        }
+    }
+
+    @Override
+    public void iterateCTRESim() {
+        // Do nothing, this is a rev device.
     }
 
     /**
@@ -339,11 +378,7 @@ public class ManipSparkMax extends ManipMotor {
      */
     @Override
     public void set(double percentOutput) {
-        runEnd(() -> {
-            motor.set(percentOutput);
-        }, () -> {
-            motor.set(0.0);
-        });
+        motor.set(percentOutput);
     }
 
     /**
@@ -449,7 +484,15 @@ public class ManipSparkMax extends ManipMotor {
      */
     @Override
     public double getAppliedOutput() {
-        return motor.getAppliedOutput();
+        double output = 0;
+        if (Robot.isSimulation()) {
+            if (sparkMaxSim != null) {
+                output = sparkMaxSim.getAppliedOutput();
+            }
+        } else {
+            output = motor.getAppliedOutput();
+        }
+        return output;
     }
 
     /**
@@ -460,6 +503,11 @@ public class ManipSparkMax extends ManipMotor {
     @Override
     public double getVelocity() {
         return velocity.get();
+    }
+
+    @Override
+    public void setVelocity(double velocity) {
+        this.velocity = () -> velocity;
     }
 
     /**
