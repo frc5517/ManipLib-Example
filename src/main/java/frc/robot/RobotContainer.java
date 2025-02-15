@@ -5,11 +5,13 @@
 package frc.robot;
 
 import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import maniplib.ManipElevator;
 import maniplib.ManipArm;
+import maniplib.Telemetry;
 import maniplib.motors.ManipSparkMax;
 
 import static edu.wpi.first.units.Units.Volts;
@@ -28,10 +30,14 @@ public class RobotContainer {
 
     public RobotContainer() {
 
+        Telemetry.manipVerbosity = Telemetry.ManipTelemetry.NONE;
+
         DriverStation.silenceJoystickConnectionWarning(true);
 
         ManipSparkMax rightElevatorMotor = new ManipSparkMax(3);
         elevator.addFollower(rightElevatorMotor, true);
+
+        SmartDashboard.putData("Side View", Constants.sideRobotView);
 
         arm.setDefaultCommand(arm.autoStowWithOverride(0));
 
@@ -51,13 +57,22 @@ public class RobotContainer {
         operatorController.back().onTrue(arm.toggleAutoStow());
         operatorController.back().onFalse(elevator.toggleAutoStow());
 
-        operatorController.y().whileTrue(elevator.setGoal(400));
-        operatorController.x().whileTrue(elevator.setGoal(100));
+        operatorController.y().whileTrue(elevator.setGoal(40));
+        operatorController.x().whileTrue(elevator.setGoal(10));
         operatorController.y().whileTrue(arm.setGoal(-75));
         operatorController.x().whileTrue(arm.setGoal(75));
 
-        operatorController.start().onTrue(arm.runSysIdRoutine());
+        //operatorController.start().onTrue(arm.runSysIdRoutine());
         operatorController.start().onTrue(elevator.runSysIdRoutine());
+    }
+
+    /**
+     * Used to update mechanism sims. Called in {@link Robot}.
+     */
+    public void updateMechSim() {
+        Constants.kElevatorCarriage.setPosition(Constants.ArmConstants.armConfig.kArmLength, elevator.getMechLength());
+        Constants.kElevatorTower.setLength(elevator.getMechLength());
+        Constants.kArmMech.setAngle(arm.getMechAngle());
     }
 
     public Command getAutonomousCommand() {

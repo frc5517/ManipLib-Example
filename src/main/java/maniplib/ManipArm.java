@@ -1,18 +1,12 @@
 package maniplib;
 
-import com.revrobotics.sim.SparkMaxSim;
-import com.revrobotics.spark.SparkLowLevel;
-import com.revrobotics.spark.SparkMax;
 import edu.wpi.first.math.controller.ArmFeedforward;
 import edu.wpi.first.math.system.plant.LinearSystemId;
 import edu.wpi.first.math.trajectory.TrapezoidProfile;
-import edu.wpi.first.math.util.Units;
 import edu.wpi.first.units.measure.*;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.RobotController;
-import edu.wpi.first.wpilibj.simulation.BatterySim;
-import edu.wpi.first.wpilibj.simulation.RoboRioSim;
-import edu.wpi.first.wpilibj.simulation.SingleJointedArmSim;
+import edu.wpi.first.wpilibj.simulation.*;
 import edu.wpi.first.wpilibj.smartdashboard.Mechanism2d;
 import edu.wpi.first.wpilibj.smartdashboard.MechanismLigament2d;
 import edu.wpi.first.wpilibj.smartdashboard.MechanismRoot2d;
@@ -24,8 +18,8 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
+import frc.robot.Robot;
 import maniplib.motors.ManipMotor;
-import maniplib.motors.ManipSparkMax;
 import maniplib.utils.ManipArmConstants;
 import maniplib.utils.ManipMath;
 import maniplib.utils.PIDFConfig;
@@ -38,6 +32,7 @@ public class ManipArm extends SubsystemBase {
     private final MutAngle angle = Rotations.mutable(0);
     private final MutAngularVelocity velocity = RPM.mutable(0);
     private final MutAngle absEncoderAngle = Rotations.mutable(0);
+    // Mutable holder for a dimensionless value with no scaling. Should be clamped 0-1.
     // Triggers for when reaching max movements.
     private Trigger atMin;
     private Trigger atMax;
@@ -49,7 +44,6 @@ public class ManipArm extends SubsystemBase {
     private boolean isAdvancedEnabled = false;
     private boolean syncAbsEncoderInit = true;
     private boolean defaultCommandOverride = false;
-    private boolean overrideMech2d = false;
     // Universal motor init
     private ManipMotor motor;
     private ArmFeedforward feedforward;
@@ -58,11 +52,9 @@ public class ManipArm extends SubsystemBase {
     private SysIdRoutine sysIdRoutine;
     // Simulation class to help simulate what is going on, including gravity.
     private SingleJointedArmSim armSim;
+    private Mechanism2d arm2d;
     // Mechanism for simulation, needs overridden for anything more than a basic arm.
     private MechanismLigament2d armMech;
-
-
-    private SparkMaxSim motorSim;
 
     /**
      * Subsystem constructor, advanced {@link ManipArm} when config.kEnableAdvanced is set to true.
@@ -80,12 +72,19 @@ public class ManipArm extends SubsystemBase {
             this.armConstants = armConstants;
             this.isAdvancedEnabled = true;
 
+            this.motor.configureMotor(
+                    armConstants.kArmStallCurrentLimitAmps,
+                    armConstants.kArmRampRate,
+                    true,
+                    armConstants.kArmInverted
+            );
+
             this.atMin = new Trigger(() -> getAngle().isNear(this.armConstants.kMinAngle, Degrees.of(3)));
             this.atMax = new Trigger(() -> getAngle().isNear(this.armConstants.kMaxAngle, Degrees.of(3)));
 
-            motor.setGearbox(armConstants.gearbox);
+            this.motor.setGearbox(armConstants.gearbox);
 
-            motor.setupRioPID(
+            this.motor.setupRioPID(
                     new PIDFConfig(armConstants.kArmKp,
                             armConstants.kArmKi,
                             armConstants.kArmKd),
@@ -94,6 +93,7 @@ public class ManipArm extends SubsystemBase {
                     0.01,
                     true
             );
+
 
             this.feedforward = new ArmFeedforward(
                     armConstants.kArmkS,
@@ -106,7 +106,7 @@ public class ManipArm extends SubsystemBase {
 
                     new SysIdRoutine.Config(Volts.per(Second).of(1), Volts.of(6), Seconds.of(30)),
                     new SysIdRoutine.Mechanism(
-                            motor::setVoltage,
+                            this::runArmVoltage,
                             log -> {
                             // Record a frame for the arm motor.
                             log.motor("manipArm")
@@ -122,8 +122,7 @@ public class ManipArm extends SubsystemBase {
                     armConstants.kArmReduction,
                     SingleJointedArmSim.estimateMOI(
                             armConstants.kArmLength,
-                            armConstants.kArmMass
-                    ),
+                            armConstants.kArmMass),
                     armConstants.kArmLength,
                     armConstants.kMinAngle.in(Radians),
                     armConstants.kMaxAngle.in(Radians),
@@ -133,35 +132,41 @@ public class ManipArm extends SubsystemBase {
                     0.0
             );
 
-            if (!overrideMech2d) {
-                // Mechanism 2d for simulation, needs overridden for anything more than a basic arm.
-                Mechanism2d arm2d = new Mechanism2d(
-                        armConstants.kArmLength * 2,
-                        armConstants.kArmLength * 2
-                );
+            // Mechanism 2d for simulation, needs overridden for anything more than a basic arm.
+            arm2d = new Mechanism2d(
+                    armConstants.kArmLength * 2,
+                    armConstants.kArmLength * 2
+            );
 
-                // Mechanism root for simulation, needs overridden for anything more than a basic arm.
-                MechanismRoot2d armRoot = arm2d.getRoot("ManipArm Root",
-                        armConstants.kArmLength,
-                        armConstants.kArmLength);
+            // Mechanism root for simulation, needs overridden for anything more than a basic arm.
+            MechanismRoot2d armRoot = arm2d.getRoot("ManipArm Root",
+                    armConstants.kArmLength,
+                    armConstants.kArmLength);
 
-                this.armMech =
-                        armRoot.append(
-                                new MechanismLigament2d(
-                                        "defaultManipArm",
-                                        armConstants.kArmLength,
-                                        armConstants.kArmStartingAngle.in(Degrees),
-                                        6,
-                                        new Color8Bit(Color.kOrange)
-                                ));
-
-                // Put Mechanism 2d to dashboard, should be N4T
-                // Telemetry enum needs made...
-                SmartDashboard.putData("Arm Side View", arm2d);
-
-            }
+            this.armMech =
+                    armRoot.append(
+                            new MechanismLigament2d(
+                                    "defaultManipArm",
+                                    armConstants.kArmLength,
+                                    armConstants.kArmStartingAngle.in(Degrees),
+                                    6,
+                                    new Color8Bit(Color.kOrange)
+                            ));
         }
 
+    }
+
+    @Override
+    public void periodic() {
+        if (Telemetry.manipVerbosity.ordinal() <= Telemetry.ManipTelemetry.LOW.ordinal()) {
+            if (Robot.isSimulation()) {
+                SmartDashboard.putData("Arm Side View", arm2d);
+            }
+        }
+        if (Telemetry.manipVerbosity.ordinal() <= Telemetry.ManipTelemetry.HIGH.ordinal()) {
+            SmartDashboard.putNumber("Arm Angle", getAngle().in(Degrees));
+            SmartDashboard.putNumber("Arm Applied Output", motor.getAppliedOutput());
+        }
     }
 
     /**
@@ -186,17 +191,18 @@ public class ManipArm extends SubsystemBase {
     @Override
     public void simulationPeriodic() {
         // Set the armSim input, we use volts for this.
-        armSim.setInput(motor.getSimAppliedOutput() * RoboRioSim.getVInVoltage());
+        armSim.setInput(motor.getAppliedOutput() * RoboRioSim.getVInVoltage());
 
         // Update the arm sim, Standard loop time is 20ms.
         armSim.update(0.02);
 
         motor.iterateRevSim(
-                RotationsPerSecond.of(ManipMath.Arm.convertAngleToSensorUnits(armConstants.kArmReduction, Radians.of(armSim.getVelocityRadPerSec())).in(Rotations))
+                RotationsPerSecond.of(ManipMath.Arm.convertAngleToSensorUnits(
+                                armConstants.kArmReduction,
+                                Radians.of(armSim.getVelocityRadPerSec())).in(Rotations))
                         .in(RPM),
                 RoboRioSim.getVInVoltage(), // Simulated battery voltage, in Volts
                 0.02); // Time interval, in Seconds
-
 
         // Not implemented, will error when implemented.
         motor.iterateCTRESim();
@@ -206,15 +212,23 @@ public class ManipArm extends SubsystemBase {
                 armConstants.kArmReduction,
                 Radians.of(armSim.getAngleRads())).in(Rotations));
 
+        motor.setVelocity(ManipMath.Arm.convertAngleToSensorUnits(
+                armConstants.kArmReduction,
+                Radians.of(armSim.getVelocityRadPerSec())).in(Rotations) * 60);
+
         // SimBattery estimates loaded battery voltages
         RoboRioSim.setVInVoltage(
                 BatterySim.calculateDefaultBatteryLoadedVoltage(armSim.getCurrentDrawAmps()));
 
         // Update the Arm Mechanism based on simulated arm angle
         armMech.setAngle(Degrees.convertFrom(armSim.getAngleRads(), Radians));
+    }
 
-        SmartDashboard.putNumber("Arm Angle", Radians.of(armSim.getAngleRads()).in(Degrees));
-        SmartDashboard.putNumber("Arm Applied Volts", motor.getVoltage());
+    /**
+     * @return The angle used to update an arm {@link MechanismLigament2d}.
+     */
+    public double getMechAngle() {
+        return Degrees.convertFrom(armSim.getAngleRads(), Radians);
     }
 
     /**
@@ -255,17 +269,6 @@ public class ManipArm extends SubsystemBase {
     public void synchronizeAbsoluteEncoder() {
         motor.setPosition(Rotations.of(absEncoderAngle.in(Degrees)).minus(armConstants.kArmOffsetToHorizantalZero)
                 .in(Rotations));
-    }
-
-    /**
-     * Disables native Mech2d
-     */
-    public void overrideMech2d(boolean overrideMech2d) {
-        if (isAdvancedEnabled) {
-            this.overrideMech2d = overrideMech2d;
-        } else {
-            DriverStation.reportError("Advanced ManipArm is required for overrideMech2d()", true);
-        }
     }
 
     /**
@@ -332,8 +335,8 @@ public class ManipArm extends SubsystemBase {
      * Basic method to run the arm at commanded speed.
      */
     public void runArmSpeed(double speed) {
-        //limitSwitchFunction();
-        motor.set(-speed);
+        limitSwitchFunction();
+        motor.set(speed);
     }
 
     /**

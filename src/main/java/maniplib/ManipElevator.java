@@ -29,10 +29,9 @@ import static edu.wpi.first.units.Units.*;
 
 public class ManipElevator extends SubsystemBase {
     // Mutable holders for unit-safe values, persisted to avoid reallocation.
-    private final MutVoltage commandedVoltage = Volts.mutable(0);
+    private final MutVoltage appliedVoltage = Volts.mutable(0);
     private final MutLinearVelocity velocity = MetersPerSecond.mutable(0);
     private final MutDistance distance = Meters.mutable(0);
-    private final MutAngle rotations = Rotations.mutable(0);
     private final MutAngle absEncoderAngle = Rotations.mutable(0);
     // Triggers for when reaching max movements.
     private Trigger atMin;
@@ -45,15 +44,15 @@ public class ManipElevator extends SubsystemBase {
     private boolean isAdvancedEnabled = false;
     private boolean syncAbsEncoderInit = true;
     private boolean defaultCommandOverride = false;
-    private boolean overrideMech2d = false;
     // Universal motor init
-    private ManipMotor motor;
+    private final ManipMotor motor;
     private ElevatorFeedforward feedforward;
     private ManipElevatorConstants elevatorConstants;
     // SysId Routine
     private SysIdRoutine sysIdRoutine;
     // Simulation class to help simulate what is going on, including gravity.
     private ElevatorSim elevatorSim;
+    private Mechanism2d elevator2d;
     // Mechanism for simulation, needs overridden for anything more than a basic elevator.
     private MechanismLigament2d elevatorMech;
 
@@ -75,6 +74,15 @@ public class ManipElevator extends SubsystemBase {
 
             this.atMin = new Trigger(() -> getLinearPosition().isNear(config.kMinHeight, Inches.of(1)));
             this.atMax = new Trigger(() -> getLinearPosition().isNear(config.kMaxHeight, Inches.of(1)));
+
+            this.motor.setGearbox(elevatorConstants.gearbox);
+
+            this.motor.configureMotor(
+                    elevatorConstants.kElevatorCurrentLimit,
+                    elevatorConstants.kElevatorRampRate,
+                    true,
+                    elevatorConstants.kIsInverted
+                );
 
             motor.setupRioPID(
                     new PIDFConfig(config.kElevatorKp,
@@ -101,7 +109,8 @@ public class ManipElevator extends SubsystemBase {
                             log -> {
                                 // Record a frame for the elevator motor.
                                 log.motor("manipElevator")
-                                        .voltage(getAppliedVoltage())
+                                        .voltage(appliedVoltage.mut_replace(motor.getAppliedOutput() *
+                                                RobotController.getBatteryVoltage(), Volts))
                                         .linearPosition(distance.mut_replace(getHeightMeters(),
                                                 Meters)) // Records Height in Meters via SysIdRoutineLog.linearPosition
                                         .linearVelocity(velocity.mut_replace(getVelocityMetersPerSecond(),
@@ -110,12 +119,10 @@ public class ManipElevator extends SubsystemBase {
                             this));
 
             this.elevatorSim = new ElevatorSim(
-                    LinearSystemId.createElevatorSystem(
-                            config.gearbox,
-                            config.kElevatorCarriageMass,
-                            config.kElevatorDrumRadius,
-                            config.kElevatorGearing),
                     config.gearbox,
+                    config.kElevatorGearing,
+                    config.kElevatorCarriageMass,
+                    config.kElevatorDrumRadius,
                     config.kMinHeight.in(Meters),
                     config.kMaxHeight.in(Meters),
                     true,
@@ -124,34 +131,39 @@ public class ManipElevator extends SubsystemBase {
                     0.0
             );
 
-            if (!overrideMech2d) {
-                // Mechanism 2d for simulation, needs overridden for anything more than a basic elevator.
-                Mechanism2d elevator2d = new Mechanism2d(
-                        (config.kMaxHeight.in(Meters) / 5),
-                        config.kMaxHeight.in(Meters) + (config.kMaxHeight.in(Meters) / 10)
-                );
+            // Mechanism 2d for simulation, needs overridden for anything more than a basic elevator.
+            this.elevator2d = new Mechanism2d(
+                    (config.kMaxHeight.in(Meters) / 5),
+                    config.kMaxHeight.in(Meters) + (config.kMaxHeight.in(Meters) / 10)
+            );
 
-                // Mechanism root for simulation, needs overridden for anything more than a basic elevator.
-                MechanismRoot2d elevatorRoot = elevator2d.getRoot("ManipElevator Root",
-                        (config.kMaxHeight.in(Meters) / 10),
-                        config.kMinHeight.in(Meters));
+            // Mechanism root for simulation, needs overridden for anything more than a basic elevator.
+            MechanismRoot2d elevatorRoot = elevator2d.getRoot("ManipElevator Root",
+                    (config.kMaxHeight.in(Meters) / 10),
+                    config.kMinHeight.in(Meters));
 
-                this.elevatorMech =
-                        elevatorRoot.append(
-                                new MechanismLigament2d(
-                                        "defaultManipElevator",
-                                        config.kStartingHeightSim.in(Meters),
-                                        90,
-                                        6,
-                                        new Color8Bit(Color.kYellow)
-                                ));
-                // Put Mechanism 2d to dashboard, should be N4T
-                // Telemetry enum needs made...
-                SmartDashboard.putData("Elevator Side View", elevator2d);
-            }
-
+            this.elevatorMech =
+                    elevatorRoot.append(
+                            new MechanismLigament2d(
+                                    "defaultManipElevator",
+                                    config.kStartingHeightSim.in(Meters),
+                                    90,
+                                    6,
+                                    new Color8Bit(Color.kYellow)
+                            ));
         }
 
+    }
+
+    @Override
+    public void periodic() {
+        if (Telemetry.manipVerbosity.ordinal() <= Telemetry.ManipTelemetry.LOW.ordinal()) {
+            SmartDashboard.putData("Elevator Side", elevator2d);
+        }
+        if (Telemetry.manipVerbosity.ordinal() <= Telemetry.ManipTelemetry.HIGH.ordinal()) {
+            SmartDashboard.putNumber("Elevator Height", getLinearPosition().in(Inches));
+            SmartDashboard.putNumber("Elevator Applied Output", motor.getAppliedOutput());
+        }
     }
 
     /**
@@ -176,10 +188,21 @@ public class ManipElevator extends SubsystemBase {
     @Override
     public void simulationPeriodic() {
         // Set the elevatorSim input, we use volts for this.
-        elevatorSim.setInputVoltage(commandedVoltage.in(Volts));
+        elevatorSim.setInput(motor.getAppliedOutput() * RoboRioSim.getVInVoltage());
 
         // Update the elevator sim, Standard loop time is 20ms.
         elevatorSim.update(0.02);
+
+        motor.iterateRevSim(
+                ManipMath.Elevator.convertDistanceToRotations(
+                        elevatorConstants.kElevatorDrumRadius,
+                        elevatorConstants.kElevatorGearing,
+                        Meters.of(elevatorSim.getVelocityMetersPerSecond())).per(Second).in(RPM),
+                RoboRioSim.getVInVoltage(),
+                0.020);
+
+        // Not implemented will error
+        motor.iterateCTRESim();
 
         // Finally, we set our simulated encoder's readings and simulated battery voltage
         motor.setPosition(ManipMath.Elevator.convertDistanceToRotations(
@@ -198,15 +221,12 @@ public class ManipElevator extends SubsystemBase {
 
         // Update the Elevator Mechanism based on simulated elevator height
         elevatorMech.setLength(getLinearPosition().in(Meters));
-
-        SmartDashboard.putNumber("Elev Volts", getAppliedVoltage().in(Volts));
-        SmartDashboard.putNumber("Battery Voltage", RobotController.getBatteryVoltage());
     }
 
     /**
-     * @return The elevatorSim's height for custom Mechanism 2d setups.
+     * @return The length used to update a elevator {@link MechanismLigament2d}
      */
-    public double elevatorSimLength() {
+    public double getMechLength() {
         return getLinearPosition().in(Meters);
     }
 
@@ -250,17 +270,6 @@ public class ManipElevator extends SubsystemBase {
     }
 
     /**
-     * Disables native Mech2d
-     */
-    public void overrideMech2d(boolean overrideMech2d) {
-        if (isAdvancedEnabled) {
-            this.overrideMech2d = overrideMech2d;
-        } else {
-            DriverStation.reportError("Advanced ManipElevator is required for overrideMech2d()", true);
-        }
-    }
-
-    /**
      * Runs the SysId routine to tune the elevator
      *
      * @return SysId Routine command
@@ -276,20 +285,6 @@ public class ManipElevator extends SubsystemBase {
             DriverStation.reportWarning("Advanced ManipElevator is not setup, for safety SysID is disabled", true);
             return Commands.none();
         }
-    }
-
-    /**
-     * @return the {@link ManipElevator} calculated appliedVoltage.
-     */
-    public Voltage getAppliedVoltage() {
-        return Volts.of(Math.abs((commandedVoltage.in(Volts) / 12) * RobotController.getBatteryVoltage()));
-    }
-
-    /**
-     * @return the {@link ManipElevator} commandedVoltage.
-     */
-    public Voltage getCommandedVoltage() {
-        return commandedVoltage;
     }
 
     /**
@@ -383,13 +378,11 @@ public class ManipElevator extends SubsystemBase {
     public void reachSetpoint(double setpointInches) {
         if (isAdvancedEnabled) {
             limitSwitchFunction();
-            double output = MathUtil.clamp(
+
+            motor.setVoltage(MathUtil.clamp(
                     motor.getRioController().calculate(getHeightMeters(), Meters.convertFrom(setpointInches, Inches)) +
                             feedforward.calculateWithVelocities(getVelocityMetersPerSecond(),
-                                    motor.getRioController().getSetpoint().velocity), -7, 7);
-
-            commandedVoltage.mut_replace(Volts.of(output));
-            motor.setVoltage(output);
+                                    motor.getRioController().getSetpoint().velocity), -7, 7));
 
         } else {
             limitSwitchFunction();
@@ -402,7 +395,6 @@ public class ManipElevator extends SubsystemBase {
      */
     public void runElevatorSpeed(double speed) {
         limitSwitchFunction();
-        commandedVoltage.mut_replace(Volts.of(12 * -speed));
         motor.set(-speed);
     }
 
@@ -411,7 +403,6 @@ public class ManipElevator extends SubsystemBase {
      */
     public void runElevatorVoltage(Voltage volts) {
         limitSwitchFunction();
-        commandedVoltage.mut_replace(volts);
         motor.setVoltage(volts);
     }
 
@@ -509,6 +500,5 @@ public class ManipElevator extends SubsystemBase {
      */
     public void stopElevator() {
         motor.stopMotor();
-        commandedVoltage.mut_replace(Volts.of(0));
     }
 }

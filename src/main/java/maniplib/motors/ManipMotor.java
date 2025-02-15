@@ -33,14 +33,19 @@ public abstract class ManipMotor {
     public abstract void clearStickyFaults();
 
     /**
+     * Used to internally set motor constants.
+     */
+    public abstract void configureMotor(
+            int stallCurrent,
+            double rampRate,
+            boolean isBrake,
+            boolean isInverted
+    );
+
+    /**
      * Used to pass the mechanism gearbox to the motor for sim.
      */
     public abstract void setGearbox(DCMotor gearbox);
-
-    /**
-     * @return The applied output for sim use.
-     */
-    public abstract double getSimAppliedOutput();
 
     /**
      * Iterates Rev's sim, does nothing on CTRE devices.

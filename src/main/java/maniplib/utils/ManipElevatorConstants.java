@@ -35,6 +35,7 @@ public class ManipElevatorConstants {
     public final double kAbsEncoderOffset;
     // Whether to use basic or advanced controls and sim.
     public final boolean kEnableAdvanced;
+    public final boolean kIsInverted;
 
     /**
      * Sets the constant values for {@link maniplib.ManipElevator}.
@@ -53,6 +54,7 @@ public class ManipElevatorConstants {
      * @param kStartingSimHeightInches Where the elevator sim should set the elevator on start, in inches.
      * @param kMaxHeightInches Elevators max height in inches. Used for soft limits as well.
      * @param kMinHeightInches Elevators min height in inches. Used for soft limits as well.
+     * @param kIsInverted Whether to invert the lead motor. Positive speed should go up.
      * @param kElevatorRampRate Elevators ramp rate. 0.1 is recommended for most.
      * @param kElevatorCurrentLimit Elevators current limit. 40 is recommended for most.
      * @param kMaxVelocityMps Elevators max velocity in meters per second.
@@ -75,6 +77,7 @@ public class ManipElevatorConstants {
             double kStartingSimHeightInches,
             double kMaxHeightInches,
             double kMinHeightInches,
+            boolean kIsInverted,
             double kElevatorRampRate,
             int kElevatorCurrentLimit,
             double kMaxVelocityMps,
@@ -96,6 +99,7 @@ public class ManipElevatorConstants {
         this.kStartingHeightSim = Meters.of(Meters.convertFrom(kStartingSimHeightInches, Inches)); // Convert inches to meter units.
         this.kMaxHeight = Meters.of(Meters.convertFrom(kMaxHeightInches, Inches)); // Convert inches to meter units.
         this.kMinHeight = Meters.of(Meters.convertFrom(kMinHeightInches, Inches)); // Convert inches to meter units.
+        this.kIsInverted = kIsInverted;
         this.kElevatorRampRate = kElevatorRampRate;
         this.kElevatorCurrentLimit = kElevatorCurrentLimit;
         this.kMaxVelocity = Meters.of(kMaxVelocityMps).per(Second).in(MetersPerSecond);

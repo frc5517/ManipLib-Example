@@ -20,7 +20,7 @@ import edu.wpi.first.units.measure.Voltage;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
+import frc.robot.Robot;
 import maniplib.utils.PIDControlType;
 import maniplib.utils.PIDFConfig;
 
@@ -31,7 +31,7 @@ import static edu.wpi.first.units.Units.Seconds;
 import static edu.wpi.first.wpilibj2.command.Commands.run;
 
 /**
- * An implementation of {@link com.revrobotics.spark.SparkMax} as a {@link ManipMotor}.
+ * An implementation of {@link SparkMax} as a {@link ManipMotor}.
  */
 public class ManipSparkMax extends ManipMotor {
 
@@ -76,11 +76,7 @@ public class ManipSparkMax extends ManipMotor {
      */
     private ControlType sparkControlType = ControlType.kPosition;
     /**
-     * {@link DCMotor} used for sim. Passed in from the mechanism.
-     */
-    private DCMotor gearbox = null;
-    /**
-     * {@link com.revrobotics.sim.SparkMaxSim} for the mechanism.
+     * {@link SparkMaxSim} for the mechanism.
      */
     private SparkMaxSim sparkMaxSim = null;
 
@@ -264,18 +260,20 @@ public class ManipSparkMax extends ManipMotor {
     }
 
     @Override
-    public void setGearbox(DCMotor gearbox) {
-        this.gearbox = gearbox;
-        this.sparkMaxSim = new SparkMaxSim(motor, gearbox);
+    public void configureMotor(int stallCurrent, double rampRate, boolean isBrake, boolean isInverted) {
+        SparkMaxConfig config = getConfig();
+        config
+                .smartCurrentLimit(stallCurrent)
+                .closedLoopRampRate(rampRate)
+                .idleMode(isBrake ? IdleMode.kBrake : IdleMode.kCoast)
+                .inverted(isInverted);
+        updateConfig(config);
+
     }
 
     @Override
-    public double getSimAppliedOutput() {
-        if (sparkMaxSim != null) {
-            return sparkMaxSim.getAppliedOutput();
-        } else {
-            return 0;
-        }
+    public void setGearbox(DCMotor gearbox) {
+        this.sparkMaxSim = new SparkMaxSim(motor, gearbox);
     }
 
     @Override
@@ -486,7 +484,15 @@ public class ManipSparkMax extends ManipMotor {
      */
     @Override
     public double getAppliedOutput() {
-        return motor.getAppliedOutput();
+        double output = 0;
+        if (Robot.isSimulation()) {
+            if (sparkMaxSim != null) {
+                output = sparkMaxSim.getAppliedOutput();   
+            }
+        } else {
+            output = motor.getAppliedOutput();
+        }
+        return output;
     }
 
     /**

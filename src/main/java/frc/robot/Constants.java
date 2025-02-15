@@ -9,10 +9,41 @@ import edu.wpi.first.wpilibj.util.Color8Bit;
 import maniplib.utils.ManipArmConstants;
 import maniplib.utils.ManipElevatorConstants;
 
-import static edu.wpi.first.units.Units.*;
-import static frc.robot.Constants.ArmConstants.armConfig;
+import static edu.wpi.first.units.Units.Degrees;
+import static edu.wpi.first.units.Units.Meters;
 
 public class Constants {
+
+    public static final Mechanism2d         sideRobotView = new Mechanism2d(ArmConstants.armConfig.kArmLength * 2,
+            ElevatorConstants.elevatorConfig.kMaxHeight.in(
+                    Meters) +
+                    ArmConstants.armConfig.kArmLength);
+
+    public static final MechanismRoot2d kElevatorCarriage;
+    public static final MechanismLigament2d kArmMech;
+    public static final MechanismLigament2d kElevatorTower;
+
+    static
+    {
+        kElevatorCarriage = Constants.sideRobotView.getRoot("ElevatorCarriage",
+                ArmConstants.armConfig.kArmLength,
+                ElevatorConstants.elevatorConfig.kStartingHeightSim.in(
+                        Meters));
+        kArmMech = kElevatorCarriage.append(
+                new MechanismLigament2d(
+                        "Arm",
+                        ArmConstants.armConfig.kArmLength,
+                        ArmConstants.armConfig.kArmStartingAngle.in(Degrees),
+                        6,
+                        new Color8Bit(Color.kYellow)));
+        kElevatorTower = kElevatorCarriage.append(new MechanismLigament2d(
+                "Elevator",
+                ElevatorConstants.elevatorConfig.kStartingHeightSim.in(Meters),
+                -90,
+                6,
+                new Color8Bit(Color.kRed)));
+    }
+
     public static final class ArmConstants {
         public static final double armSpeed = 0.15;
         public static final double armSetpoint = 5;
@@ -20,26 +51,26 @@ public class Constants {
         public static final ManipArmConstants armConfig =
                 new ManipArmConstants(
                         DCMotor.getNEO(1),
-                        3,
+                        2.026,
                         0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
+                        0.092372,
+                        0.012394,
+                        0.019009,
+                        0.12269,
+                        0.0042372,
                         140,
                         3,
                         17,
                         0,
                         -90,
                         90,
-                        false,
+                        true,
                         .5,
                         0,
                         0.01,
                         40,
-                        90,
-                        180,
+                        20,
+                        40,
                         true
                 );
     }
@@ -50,24 +81,25 @@ public class Constants {
 
         public static final ManipElevatorConstants elevatorConfig =
                 new ManipElevatorConstants(
-                        DCMotor.getNEO(1),
-                        26.722,
+                        DCMotor.getNEO(2),
+                        28.475,
                         0,
-                        1.6047,
-                        0.01964,
-                        3.894,
-                        0.173,
-                        0.91274,
-                        50,
+                        1.2353,
+                        0.08,
+                        23.47,
+                        0.45118,
+                        0.044757,
+                        60,
                         2,
-                        8,
+                        6,
                         0,
                         72,
                         0,
-                        0.1,
+                        false,
+                        0.2,
                         40,
-                        4,
-                        8,
+                        10,
+                        20,
                         0,
                         true
                 );
