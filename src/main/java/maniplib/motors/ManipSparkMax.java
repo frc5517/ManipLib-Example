@@ -18,9 +18,9 @@ import edu.wpi.first.math.system.plant.DCMotor;
 import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.units.measure.Voltage;
 import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
-import frc.robot.Robot;
 import maniplib.utils.PIDControlType;
 import maniplib.utils.PIDFConfig;
 
@@ -485,7 +485,7 @@ public class ManipSparkMax extends ManipMotor {
     @Override
     public double getAppliedOutput() {
         double output = 0;
-        if (Robot.isSimulation()) {
+        if (RobotBase.isSimulation()) {
             if (sparkMaxSim != null) {
                 output = sparkMaxSim.getAppliedOutput();
             }

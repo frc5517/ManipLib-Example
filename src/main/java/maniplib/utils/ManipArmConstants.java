@@ -103,7 +103,7 @@ public class ManipArmConstants {
         this.kMaxAngle = Degrees.of(kMaxAngle);
         this.kArmInverted = kArmInverted;
         this.kArmRampRate = kArmRampRate;
-        this.kArmOffsetToHorizantalZero = Rotations.of(kArmOffsetToHorizantalZero);
+        this.kArmOffsetToHorizantalZero = Degrees.of(kArmOffsetToHorizantalZero);
         this.kArmAllowedClosedLoopError = ManipMath.Arm.convertAngleToSensorUnits(kArmReduction, Degrees.of(kArmAllowedClosedLoopError));
         this.kArmStallCurrentLimitAmps = kArmStallCurrentLimitAmps;
         this.kArmMaxVelocityRPM = ManipMath.Arm.convertAngleToSensorUnits(kArmReduction, Degrees.of(kArmMaxVelocityRPM)).per(

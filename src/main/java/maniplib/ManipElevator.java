@@ -37,9 +37,12 @@ public class ManipElevator extends SubsystemBase {
     // Triggers for when reaching max movements.
     private Trigger atMin;
     private Trigger atMax;
+    // Booleans for limit switch functions.
+    private boolean topLimitBoolean = false;
+    private boolean bottomLimitBoolean = false;
     // Triggers for limit switch functions.
-    private Trigger topLimitHit;
-    private Trigger bottomLimitHit;
+    private Trigger topLimit;
+    private Trigger bottomLimit;
     // Various booleans to determine what to enable
     private boolean absSetup = false;
     private boolean isAdvancedEnabled = false;
@@ -71,8 +74,27 @@ public class ManipElevator extends SubsystemBase {
             this.elevatorConstants = config;
             this.isAdvancedEnabled = true;
 
+            this.topLimit = new Trigger(() -> topLimitBoolean);
+            this.bottomLimit = new Trigger(() -> bottomLimitBoolean);
+
             this.atMin = new Trigger(() -> getLinearPosition().isNear(config.kMinHeight, Inches.of(1)));
             this.atMax = new Trigger(() -> getLinearPosition().isNear(config.kMaxHeight, Inches.of(1)));
+
+            this.atMax.or(topLimit).onTrue(run(this::stopElevator));
+            this.atMin.or(topLimit).onTrue(run(this::stopElevator));
+
+            this.topLimit.onTrue(run(() ->
+                    motor.setPosition(ManipMath.Elevator.convertDistanceToRotations(
+                            config.kElevatorDrumRadius,
+                            config.kElevatorGearing,
+                            config.kMaxHeight
+                    ).in(Rotations))));
+            this.bottomLimit.onTrue(run(() ->
+                    motor.setPosition(ManipMath.Elevator.convertDistanceToRotations(
+                            config.kElevatorDrumRadius,
+                            config.kElevatorGearing,
+                            config.kMaxHeight
+                    ).in(Rotations))));
 
             this.motor.setGearbox(elevatorConstants.gearbox);
 
@@ -371,32 +393,29 @@ public class ManipElevator extends SubsystemBase {
      */
     public void reachSetpoint(double setpointInches) {
         if (isAdvancedEnabled) {
-            limitSwitchFunction();
-
             motor.setVoltage(MathUtil.clamp(
                     motor.getRioController().calculate(getHeightMeters(), Meters.convertFrom(setpointInches, Inches)) +
                             feedforward.calculateWithVelocities(getVelocityMetersPerSecond(),
                                     motor.getRioController().getSetpoint().velocity), -7, 7));
 
         } else {
-            limitSwitchFunction();
             motor.setReference(setpointInches);
         }
     }
 
     /**
      * Basic method to run the elevator at commanded speed.
+     * This does not stop!!
      */
     public void runElevatorSpeed(double speed) {
-        limitSwitchFunction();
-        motor.set(-speed);
+        motor.set(speed);
     }
 
     /**
      * Basic method to run the elevator at commanded voltage.
+     * This does not stop!!
      */
     public void runElevatorVoltage(Voltage volts) {
-        limitSwitchFunction();
         motor.setVoltage(volts);
     }
 
@@ -409,60 +428,32 @@ public class ManipElevator extends SubsystemBase {
 
     /**
      * Runs runElevatorSpeed as a {@link Command}.
+     * This stops after command is finished.
      */
     public Command runElevatorSpeedCommand(double speed) {
-        return run(() -> runElevatorSpeed(speed));
+        return runEnd(() -> runElevatorSpeed(speed), this::stopElevator);
     }
 
     /**
      * Runs runElevatorVoltage as a {@link Command}.
+     * This stops after command is finished.
      */
     public Command runElevatorVoltageCommand(Voltage volts) {
-        return run(() -> runElevatorVoltage(volts));
+        return runEnd(() -> runElevatorVoltage(volts), this::stopElevator);
     }
 
     /**
-     * Sets the {@link Trigger} for when the top limit switch is hit for {@link ManipElevator}.
-     *
-     * @param topLimitHit top limit switch {@link Trigger}.
+     * Sets the {@link Boolean} for when the top limit switch is hit for {@link ManipElevator}.
      */
-    public void setTopLimitSwitch(Trigger topLimitHit) {
-        this.topLimitHit = topLimitHit;
+    public void setTopLimitSwitch(boolean topLimit) {
+        this.topLimitBoolean = topLimit;
     }
 
     /**
-     * Sets the {@link Trigger} for when the bottom limit switch is hit for {@link ManipElevator}.
-     *
-     * @param bottomLimitHit bottom limit switch {@link Trigger}.
+     * Sets the {@link Boolean} for when the bottom limit switch is hit for {@link ManipElevator}.
      */
-    public void setBottomLimitSwitch(Trigger bottomLimitHit) {
-        this.bottomLimitHit = bottomLimitHit;
-    }
-
-    /**
-     * Function that sees if there's active limit switches then stops the {@link ManipElevator} if one is hit.
-     * Also sets soft limits based off of given Min and Max positions.
-     */
-    public void limitSwitchFunction() {
-
-        if (atMax.getAsBoolean() || atMin.getAsBoolean()) {
-            stopElevator();
-        }
-
-        if (topLimitHit != null) {
-            if (motor.getAppliedOutput() > 0 && bottomLimitHit.getAsBoolean()) {
-                stopElevator();
-            } else {
-                Commands.none(); // Stop stopping the arm
-            }
-        }
-        if (bottomLimitHit != null) {
-            if (motor.getAppliedOutput() < 0 && bottomLimitHit.getAsBoolean()) {
-                stopElevator();
-            } else {
-                Commands.none(); // Stop stopping the arm
-            }
-        }
+    public void setBottomLimitSwitch(boolean bottomLimit) {
+        this.bottomLimitBoolean = bottomLimit;
     }
 
     /**
@@ -472,7 +463,7 @@ public class ManipElevator extends SubsystemBase {
      */
     public Command autoStowWithOverride(double stowHeight) {
         return run(() -> {
-            if (!defaultCommandOverride) {
+            if (!this.defaultCommandOverride) {
                 reachSetpoint(stowHeight);
             } else {
                 Commands.none();
@@ -483,16 +474,18 @@ public class ManipElevator extends SubsystemBase {
     /**
      * Toggles auto-stow of defaultCommandOverride
      */
-    public Command toggleAutoStow() {
-        return run(() -> {
-            defaultCommandOverride = !defaultCommandOverride;
-        });
+    public void toggleAutoStow() {
+        this.defaultCommandOverride = !defaultCommandOverride;
+    }
+
+    public void setAutoStow(boolean autoStow) {
+        this.defaultCommandOverride = autoStow;
     }
 
     /**
      * Stops the elevator.
      */
     public void stopElevator() {
-        motor.stopMotor();
+        runElevatorSpeed(0.0);
     }
 }
