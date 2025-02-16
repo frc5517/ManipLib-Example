@@ -4,6 +4,7 @@ import edu.wpi.first.math.controller.ArmFeedforward;
 import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.units.measure.*;
 import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj.simulation.BatterySim;
 import edu.wpi.first.wpilibj.simulation.RoboRioSim;
@@ -19,7 +20,6 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
-import frc.robot.Robot;
 import maniplib.motors.ManipMotor;
 import maniplib.utils.ManipArmConstants;
 import maniplib.utils.ManipMath;
@@ -37,9 +37,12 @@ public class ManipArm extends SubsystemBase {
     // Triggers for when reaching max movements.
     private Trigger atMin;
     private Trigger atMax;
+    // Booleans for limit switch functions.
+    private boolean topLimitBoolean = false;
+    private boolean bottomLimitBoolean = false;
     // Triggers for limit switch functions.
-    private Trigger topLimitHit;
-    private Trigger bottomLimitHit;
+    private Trigger topLimit;
+    private Trigger bottomLimit;
     // Various booleans to determine what to enable
     private boolean absSetup = false;
     private boolean isAdvancedEnabled = false;
@@ -80,8 +83,23 @@ public class ManipArm extends SubsystemBase {
                     armConstants.kArmInverted
             );
 
+            this.topLimit = new Trigger(() -> topLimitBoolean);
+            this.bottomLimit = new Trigger(() -> bottomLimitBoolean);
+
             this.atMin = new Trigger(() -> getAngle().isNear(this.armConstants.kMinAngle, Degrees.of(3)));
             this.atMax = new Trigger(() -> getAngle().isNear(this.armConstants.kMaxAngle, Degrees.of(3)));
+
+            this.atMax.or(topLimit).onTrue(run(this::stopArm));
+            this.atMin.or(topLimit).onTrue(run(this::stopArm));
+
+            this.topLimit.onTrue(run(() ->
+                    motor.setPosition((ManipMath.Arm.convertAngleToSensorUnits(
+                            armConstants.kArmReduction,
+                            armConstants.kMaxAngle)).in(Rotations))));
+            this.bottomLimit.onTrue(run(() ->
+                    motor.setPosition((ManipMath.Arm.convertAngleToSensorUnits(
+                            armConstants.kArmReduction,
+                            armConstants.kMinAngle)).in(Rotations))));
 
             this.motor.setGearbox(armConstants.gearbox);
 
@@ -154,7 +172,6 @@ public class ManipArm extends SubsystemBase {
                                     new Color8Bit(Color.kOrange)
                             ));
         }
-
     }
 
     /**
@@ -175,13 +192,17 @@ public class ManipArm extends SubsystemBase {
     @Override
     public void periodic() {
         if (Telemetry.manipVerbosity.ordinal() <= Telemetry.ManipTelemetry.LOW.ordinal()) {
-            if (Robot.isSimulation()) {
+            if (RobotBase.isSimulation()) {
                 SmartDashboard.putData("Arm Side View", arm2d);
             }
         }
         if (Telemetry.manipVerbosity.ordinal() <= Telemetry.ManipTelemetry.HIGH.ordinal()) {
             SmartDashboard.putNumber("Arm Angle", getAngle().in(Degrees));
+            SmartDashboard.putNumber("Arm Motor Rotations", motor.getPosition());
             SmartDashboard.putNumber("Arm Applied Output", motor.getAppliedOutput());
+
+            SmartDashboard.putBoolean("Top Limit", topLimit.getAsBoolean());
+            SmartDashboard.putBoolean("Bottom Limit", topLimit.getAsBoolean());
         }
     }
 
@@ -317,7 +338,6 @@ public class ManipArm extends SubsystemBase {
      */
     public void reachSetpoint(double setpoint) {
         if (isAdvancedEnabled) {
-            limitSwitchFunction();
             double goalPosition = ManipMath.Arm.convertAngleToSensorUnits(armConstants.kArmReduction, Degrees.of(setpoint)).in(Rotations);
             double pidOutput = motor.getRioController().calculate(motor.getPosition(), goalPosition);
             TrapezoidProfile.State setpointState = motor.getRioController().getSetpoint();
@@ -327,24 +347,23 @@ public class ManipArm extends SubsystemBase {
                             setpointState.velocity));
 
         } else {
-            limitSwitchFunction();
             motor.setReference(setpoint);
         }
     }
 
     /**
      * Basic method to run the arm at commanded speed.
+     * This does not stop!!
      */
     public void runArmSpeed(double speed) {
-        limitSwitchFunction();
         motor.set(speed);
     }
 
     /**
      * Basic method to run the arm at commanded voltage.
+     * This does not stop!!
      */
     public void runArmVoltage(Voltage volts) {
-        limitSwitchFunction();
         motor.setVoltage(volts);
     }
 
@@ -383,67 +402,32 @@ public class ManipArm extends SubsystemBase {
 
     /**
      * Runs runArmSpeed as a {@link Command}.
+     * This stops after command is finished.
      */
     public Command runArmSpeedCommand(double speed) {
-        return run(() -> runArmSpeed(speed));
+        return runEnd(() -> runArmSpeed(speed), this::stopArm);
     }
 
     /**
      * Runs runArmVoltage as a {@link Command}.
+     * This stops after command is finished.
      */
     public Command runArmVoltageCommand(Voltage volts) {
-        return run(() -> runArmVoltage(volts));
+        return runEnd(() -> runArmVoltage(volts), this::stopArm);
     }
 
     /**
-     * Sets the {@link Trigger} for when the top limit switch is hit for {@link ManipArm}.
-     *
-     * @param topLimitHit top limit switch {@link Trigger}.
+     * Sets the {@link Boolean} for when the top limit switch is hit for {@link ManipArm}.
      */
-    public void setTopLimitSwitch(Trigger topLimitHit) {
-        this.topLimitHit = topLimitHit;
+    public void setTopLimitSwitch(boolean topLimit) {
+        this.topLimitBoolean = topLimit;
     }
 
     /**
-     * Sets the {@link Trigger} for when the bottom limit switch is hit for {@link ManipArm}.
-     *
-     * @param bottomLimitHit bottom limit switch {@link Trigger}.
+     * Sets the {@link Boolean} for when the bottom limit switch is hit for {@link ManipArm}.
      */
-    public void setBottomLimitSwitch(Trigger bottomLimitHit) {
-        this.bottomLimitHit = bottomLimitHit;
-    }
-
-    /**
-     * Function that sees if there's active limit switches then stops the {@link ManipArm} if one is hit.
-     * Also sets soft limits based off of given Min and Max positions.
-     */
-    public void limitSwitchFunction() {
-
-        if (motor.getAppliedOutput() > 0 && atMax.getAsBoolean()) {
-            stopArm();
-        } else {
-            Commands.none(); // Stop stopping the arm
-        }
-        if (motor.getAppliedOutput() < 0 && atMin.getAsBoolean()) {
-            stopArm();
-        } else {
-            Commands.none(); // Stop stopping the arm
-        }
-
-        if (topLimitHit != null) {
-            if (motor.getAppliedOutput() > 0 && topLimitHit.getAsBoolean()) {
-                stopArm();
-            } else {
-                Commands.none(); // Stop stopping the arm
-            }
-        }
-        if (bottomLimitHit != null) {
-            if (motor.getAppliedOutput() < 0 && bottomLimitHit.getAsBoolean()) {
-                stopArm();
-            } else {
-                Commands.none(); // Stop stopping the arm
-            }
-        }
+    public void setBottomLimitSwitch(boolean bottomLimit) {
+        this.bottomLimitBoolean = bottomLimit;
     }
 
     /**
@@ -464,16 +448,18 @@ public class ManipArm extends SubsystemBase {
     /**
      * Toggles auto-stow of defaultCommandOverride
      */
-    public Command toggleAutoStow() {
-        return run(() -> {
-            defaultCommandOverride = !defaultCommandOverride;
-        });
+    public void toggleAutoStow() {
+        this.defaultCommandOverride = !defaultCommandOverride;
+    }
+
+    public void setAutoStow(boolean autoStow) {
+        this.defaultCommandOverride = autoStow;
     }
 
     /**
      * Stops the arm.
      */
     public void stopArm() {
-        motor.stopMotor();
+        runArmSpeed(0.0);
     }
 }
