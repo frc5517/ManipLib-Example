@@ -1,1 +1,1 @@
-Vendordep install link https://konnorreynolds.github.io/Manip-Lib/maniplib/maniplib.json
+Vendordep install link https://frc5517.github.io/Manip-Lib/maniplib/maniplib.json
