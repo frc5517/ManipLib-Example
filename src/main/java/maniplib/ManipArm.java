@@ -270,6 +270,7 @@ public class ManipArm extends SubsystemBase {
     /**
      * Adds an absolute encoder to sync to on init. This is not used for actual control
      * but recommended to keep arm position on boot. Can be called in init.
+     * Value must be in 0-360. 
      */
     public void addAbsoluteEncoderValue(double absEncoderDegrees) {
         absEncoderAngle.mut_replace(absEncoderDegrees, Degrees);
@@ -293,8 +294,10 @@ public class ManipArm extends SubsystemBase {
      * Syncs on init by default.
      */
     public void synchronizeAbsoluteEncoder() {
-        motor.setPosition(Rotations.of(absEncoderAngle.in(Degrees)).minus(armConstants.kArmOffsetToHorizantalZero)
-                .in(Rotations));
+        motor.setPosition(
+                Rotations.of(absEncoderAngle.in(Degrees))
+                        .minus(armConstants.kArmOffsetToHorizantalZero)
+                        .in(Rotations));
     }
 
     /**
@@ -369,6 +372,22 @@ public class ManipArm extends SubsystemBase {
      */
     public void runArmVoltage(Voltage volts) {
         motor.setVoltage(volts);
+    }
+
+    /**
+     * Powers the motor with the kG feedforward value.
+     * "Voltage required to counteract gravity".
+     */
+    public void runkG() {
+        motor.setVoltage(armConstants.kArmkG);
+    }
+
+    /**
+     * Powers the motor with the kG feedforward value as a command.
+     * "Voltage required to counteract gravity".
+     */
+    public Command runkGCommand() {
+        return run(this::runkG);
     }
 
     /**

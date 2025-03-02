@@ -447,6 +447,22 @@ public class ManipElevator extends SubsystemBase {
     }
 
     /**
+     * Powers the motor with the kG feedforward value.
+     * "Voltage required to counteract gravity".
+     */
+    public void runkG() {
+        motor.setVoltage(elevatorConstants.kElevatorkG);
+    }
+
+    /**
+     * Powers the motor with the kG feedforward value as a command.
+     * "Voltage required to counteract gravity".
+     */
+    public Command runkGCommand() {
+        return run(this::runkG);
+    }
+
+    /**
      * Sets the {@link Boolean} for when the top limit switch is hit for {@link ManipElevator}.
      */
     public void setTopLimitSwitch(boolean topLimit) {
