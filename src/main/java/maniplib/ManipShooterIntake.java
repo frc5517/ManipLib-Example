@@ -30,14 +30,45 @@ public class ManipShooterIntake extends SubsystemBase {
     }
 
     /**
-     * Set the percentage output.
+     * Set the motor voltage.
+     *
+     * @param voltage to run the motor at.
+     */
+    public void runVoltage(double voltage) {
+        motor.setVoltage(voltage);
+    }
+
+    /**
+     * Set the motor voltage as a command.
+     *
+     * @param voltage to run the motor at.
+     */
+    public Command runVoltageCommand(double voltage) {
+        return runEnd(
+                () -> {
+                    motor.setVoltage(voltage);
+                }, this::stopShooter
+        );
+    }
+
+    /**
+     * Set the percentage output as a command.
      *
      * @param speed percent out for the motor controller.
      */
-    public Command setSpeed(double speed) {
+    public void runSpeed(double speed) {
+        motor.set(speed);
+    }
+
+    /**
+     * Set the percentage output.
+     *
+     * @param speed percent out for the motor controller as a command.
+     */
+    public Command runSpeedCommand(double speed) {
         return runEnd(
                 () -> {
-                    motor.set(speed);
+                    runSpeed(speed);
                 },
                 motor::stopMotor);
     }

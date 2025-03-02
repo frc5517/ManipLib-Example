@@ -37,6 +37,8 @@ public class ManipElevator extends SubsystemBase {
     // Triggers for when reaching max movements.
     private Trigger atMin;
     private Trigger atMax;
+    private Trigger goingDown;
+    private Trigger goingUp;
     // Booleans for limit switch functions.
     private boolean topLimitBoolean = false;
     private boolean bottomLimitBoolean = false;
@@ -79,9 +81,11 @@ public class ManipElevator extends SubsystemBase {
 
             this.atMin = new Trigger(() -> getLinearPosition().isNear(config.kMinHeight, Inches.of(1)));
             this.atMax = new Trigger(() -> getLinearPosition().isNear(config.kMaxHeight, Inches.of(1)));
+            this.goingDown = new Trigger(() -> motor.getAppliedOutput() < 0);
+            this.goingUp = new Trigger(() -> motor.getAppliedOutput() > 0);
 
-            this.atMax.or(topLimit).onTrue(run(this::stopElevator));
-            this.atMin.or(topLimit).onTrue(run(this::stopElevator));
+            this.atMin.and(goingDown).or(topLimit).onTrue(run(this::stopElevator));
+            this.atMax.and(goingUp).or(topLimit).onTrue(run(this::stopElevator));
 
             this.topLimit.onTrue(run(() ->
                     motor.setPosition(ManipMath.Elevator.convertDistanceToRotations(
@@ -440,6 +444,22 @@ public class ManipElevator extends SubsystemBase {
      */
     public Command runElevatorVoltageCommand(Voltage volts) {
         return runEnd(() -> runElevatorVoltage(volts), this::stopElevator);
+    }
+
+    /**
+     * Powers the motor with the kG feedforward value.
+     * "Voltage required to counteract gravity".
+     */
+    public void runkG() {
+        motor.setVoltage(elevatorConstants.kElevatorkG);
+    }
+
+    /**
+     * Powers the motor with the kG feedforward value as a command.
+     * "Voltage required to counteract gravity".
+     */
+    public Command runkGCommand() {
+        return run(this::runkG);
     }
 
     /**

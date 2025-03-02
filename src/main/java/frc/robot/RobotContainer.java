@@ -52,8 +52,8 @@ public class RobotContainer {
         operatorController.a().whileTrue(elevator.runEnd(() -> elevator.runElevatorSpeed(1), elevator::stopElevator));
         operatorController.b().whileTrue(elevator.runEnd(() -> elevator.runElevatorSpeed(-1), elevator::stopElevator));
 
-        operatorController.back().onTrue(arm.toggleAutoStow());
-        operatorController.back().onFalse(elevator.toggleAutoStow());
+        operatorController.back().onTrue(Commands.runOnce(arm::toggleAutoStow));
+        operatorController.back().onFalse(Commands.runOnce(elevator::toggleAutoStow));
 
         operatorController.y().whileTrue(elevator.setGoal(40));
         operatorController.x().whileTrue(elevator.setGoal(10));

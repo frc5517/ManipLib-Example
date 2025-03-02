@@ -37,6 +37,8 @@ public class ManipArm extends SubsystemBase {
     // Triggers for when reaching max movements.
     private Trigger atMin;
     private Trigger atMax;
+    private Trigger goingDown;
+    private Trigger goingUp;
     // Booleans for limit switch functions.
     private boolean topLimitBoolean = false;
     private boolean bottomLimitBoolean = false;
@@ -88,9 +90,11 @@ public class ManipArm extends SubsystemBase {
 
             this.atMin = new Trigger(() -> getAngle().isNear(this.armConstants.kMinAngle, Degrees.of(3)));
             this.atMax = new Trigger(() -> getAngle().isNear(this.armConstants.kMaxAngle, Degrees.of(3)));
+            this.goingDown = new Trigger(() -> motor.getAppliedOutput() < 0);
+            this.goingUp = new Trigger(() -> motor.getAppliedOutput() > 0);
 
-            this.atMax.or(topLimit).onTrue(run(this::stopArm));
-            this.atMin.or(topLimit).onTrue(run(this::stopArm));
+            this.atMin.and(goingDown).or(topLimit).onTrue(run(this::stopArm));
+            this.atMax.and(goingUp).or(topLimit).onTrue(run(this::stopArm));
 
             this.topLimit.onTrue(run(() ->
                     motor.setPosition((ManipMath.Arm.convertAngleToSensorUnits(
@@ -266,6 +270,7 @@ public class ManipArm extends SubsystemBase {
     /**
      * Adds an absolute encoder to sync to on init. This is not used for actual control
      * but recommended to keep arm position on boot. Can be called in init.
+     * Value must be in 0-360. 
      */
     public void addAbsoluteEncoderValue(double absEncoderDegrees) {
         absEncoderAngle.mut_replace(absEncoderDegrees, Degrees);
@@ -289,8 +294,10 @@ public class ManipArm extends SubsystemBase {
      * Syncs on init by default.
      */
     public void synchronizeAbsoluteEncoder() {
-        motor.setPosition(Rotations.of(absEncoderAngle.in(Degrees)).minus(armConstants.kArmOffsetToHorizantalZero)
-                .in(Rotations));
+        motor.setPosition(
+                Rotations.of(absEncoderAngle.in(Degrees))
+                        .minus(armConstants.kArmOffsetToHorizantalZero)
+                        .in(Rotations));
     }
 
     /**
@@ -365,6 +372,22 @@ public class ManipArm extends SubsystemBase {
      */
     public void runArmVoltage(Voltage volts) {
         motor.setVoltage(volts);
+    }
+
+    /**
+     * Powers the motor with the kG feedforward value.
+     * "Voltage required to counteract gravity".
+     */
+    public void runkG() {
+        motor.setVoltage(armConstants.kArmkG);
+    }
+
+    /**
+     * Powers the motor with the kG feedforward value as a command.
+     * "Voltage required to counteract gravity".
+     */
+    public Command runkGCommand() {
+        return run(this::runkG);
     }
 
     /**
