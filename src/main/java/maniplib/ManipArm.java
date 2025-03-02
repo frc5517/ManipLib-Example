@@ -270,10 +270,10 @@ public class ManipArm extends SubsystemBase {
     /**
      * Adds an absolute encoder to sync to on init. This is not used for actual control
      * but recommended to keep arm position on boot. Can be called in init.
-     * Value must be in 0-360. 
+     * Value must be in rotations 0-1.
      */
-    public void addAbsoluteEncoderValue(double absEncoderDegrees) {
-        absEncoderAngle.mut_replace(absEncoderDegrees, Degrees);
+    public void addAbsoluteEncoderValue(double absEncoderRotations) {
+        absEncoderAngle.mut_replace(absEncoderRotations, Rotations);
         this.absSetup = true;
     }
 
@@ -295,7 +295,7 @@ public class ManipArm extends SubsystemBase {
      */
     public void synchronizeAbsoluteEncoder() {
         motor.setPosition(
-                Rotations.of(absEncoderAngle.in(Degrees))
+                Degrees.of(absEncoderAngle.in(Rotations))
                         .minus(armConstants.kArmOffsetToHorizantalZero)
                         .in(Rotations));
     }
